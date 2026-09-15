@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "Place": {
+      "title": "Place",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "nome": { "type": "string", "maxLength": 150 },
+        "citta_o_zona": { "type": "string", "maxLength": 150 },
+        "categoria": { "type": "string", "maxLength": 80 },
+        "tipo_entita": { "type": "string", "enum": ["PUNTO", "PERCORSO"] },
+        "riassunto_ai_minimal": { "type": "string", "maxLength": 500 },
+        "visited": { "type": "boolean" },
+        "user_notes": { "type": "string", "maxLength": 2000 },
+        "user_photos": { "type": "array" },
+        "social_source_link": { "type": "string", "maxLength": 500 },
+        "coordinate": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "required": ["lat", "lng"]
+        },
+        "dati_grafici": { "type": "object" },
+        "metadata_ai_nascosti": { "type": "object" },
+        "geometria_percorso": { "type": "object" }
+      },
+      "required": ["id", "userId", "nome", "coordinate"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "entity": "User",
+      "description": "Private user profile information"
+    },
+    "/users/{userId}/places/{placeId}": {
+      "entity": "Place",
+      "description": "User personal saved spots, notes, and visited status"
+    }
+  }
+}

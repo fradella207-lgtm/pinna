@@ -1,0 +1,6 @@
+{
+  "name": "Spotter",
+  "description": "Applicazione ultra-minimalista incentrata su mappa satellitare a schermo intero (Map-First) per estrarre, mappare e organizzare luoghi ed itinerari da Reel, TikTok o screenshot con dock di navigazione fluttuante.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* Spotter Ultra-Minimalist Map styling: No clutter or bottom attribution banners */
+.leaflet-control-attribution {
+  display: none !important;
+}
+
+/* Custom smooth transitions for map tiles and markers */
+.leaflet-container {
+  background: #020617 !important;
+  font-family: inherit !important;
+}
+
+/* Hide scrollbars for smooth horizontal chip scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
