@@ -163,10 +163,15 @@ export const MapView: React.FC<MapViewProps> = ({
       const strokeColor = isVisited ? "#64748b" : (place.dati_grafici?.colore_badge_consigliato || getActivityColor(place.categoria));
 
       // --- 1. MOUNTAIN ROUTE POLYLINE (SE PERCORSO) ---
-      if (place.tipo_entita === "PERCORSO" && place.geometria_percorso?.coordinate_linea?.length) {
-        const latLngs: L.LatLngExpression[] = place.geometria_percorso.coordinate_linea.map(
-          (coord) => [coord.lat, coord.lng]
-        );
+      const routePoints: [number, number][] = 
+        place.geometria_percorso?.coordinate_linea?.length
+          ? place.geometria_percorso.coordinate_linea.map((c: any) => Array.isArray(c) ? [Number(c[0]), Number(c[1])] : [Number(c.lat), Number(c.lng)])
+          : Array.isArray(place.coordinate_percorso) && place.coordinate_percorso.length > 0
+          ? place.coordinate_percorso.map((c: any) => Array.isArray(c) ? [Number(c[0]), Number(c[1])] : [Number(c.lat), Number(c.lng)])
+          : [];
+
+      if (place.tipo_entita === "PERCORSO" && routePoints.length > 0) {
+        const latLngs: L.LatLngExpression[] = routePoints;
 
         // Subtle Glow Line underneath
         const glowLine = L.polyline(latLngs, {
@@ -256,11 +261,15 @@ export const MapView: React.FC<MapViewProps> = ({
     const lng = selectedPlace.coordinate?.lng;
     if (!lat || !lng) return;
 
-    if (selectedPlace.tipo_entita === "PERCORSO" && selectedPlace.geometria_percorso?.coordinate_linea?.length) {
-      const pts = selectedPlace.geometria_percorso.coordinate_linea.map(
-        (c) => [c.lat, c.lng] as [number, number]
-      );
-      map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
+    const selRoutePoints: [number, number][] = 
+      selectedPlace.geometria_percorso?.coordinate_linea?.length
+        ? selectedPlace.geometria_percorso.coordinate_linea.map((c: any) => Array.isArray(c) ? [Number(c[0]), Number(c[1])] : [Number(c.lat), Number(c.lng)])
+        : Array.isArray(selectedPlace.coordinate_percorso) && selectedPlace.coordinate_percorso.length > 0
+        ? selectedPlace.coordinate_percorso.map((c: any) => Array.isArray(c) ? [Number(c[0]), Number(c[1])] : [Number(c.lat), Number(c.lng)])
+        : [];
+
+    if (selectedPlace.tipo_entita === "PERCORSO" && selRoutePoints.length > 0) {
+      map.fitBounds(L.latLngBounds(selRoutePoints), { padding: [60, 60], maxZoom: 15 });
     } else {
       map.flyTo([lat, lng], 13, { duration: 1.2 });
     }

@@ -31,54 +31,44 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
-const NEW_AI_EXTRACTION_SYSTEM_PROMPT = `Sei il motore di intelligenza artificiale per un'applicazione mobile e web minimalista (Map-First) basata sulla mappa satellitare di Google Maps.
+const NEW_AI_EXTRACTION_SYSTEM_PROMPT = `Sei il motore di analisi geografica per l'app "pinna".
 
-Il tuo compito è analizzare i contenuti condivisi dall'utente (video Reel/TikTok/Shorts, screenshot, foto, link o descrizioni testuali) ed estrarre i dati necessari sia per i Luoghi Singoli (POI) che per i Percorsi (Passi di montagna, Trekking, Ciclabili).
+Il tuo compito è analizzare i contenuti condivisi (video Reel/TikTok, screenshot, trascrizioni o testo) ed estrarre i dati per posizionare qualsiasi tipo di luogo o percorso sulla mappa satellitare.
 
---- ISTRUZIONI E REQUISITI CHIAVE ---
-1. RICONOSCIMENTO TIPO ENTITÀ: Distingui se si tratta di un "PUNTO" (Ristorante, Belvedere, Bar, Museo) o di un "PERCORSO" (Passo di Montagna, Trekking, Pista Ciclabile, Passeggiata, Giro in moto/auto).
-2. CATEGORIA: Scegli una tra: ["Passi di Montagna", "Trekking", "Domenica in Montagna", "Passeggiate", "Piste Ciclabili", "Ristoranti", "Sci & Inverno", "Altro"].
-3. DATO GRAFICO/IMMAGINE: Suggerisci la query migliore per trovare un'immagine di copertina pulita e un colore esadecimale armonioso per il badge.
-4. CHICCHE AI NASCOSTE (METADATI PER L'ALGORITMO): Estrai metadati contestuali non invasivi da usare per le raccomandazioni future (ora ideale, meteo ideale, dislivello/difficoltà se applicabile, durata stimata).
-5. RIASSUNTO MINIMAL AI: Genera una sintesi ultra-breve (massimo 2 frasi) con uno stile naturale e pulito, senza fronzoli.
-6. COORDINATE E PERCORSO: Genera coordinate realistiche per l'Italia/Alpi/Europa { lat: number, lng: number }. Se tipo_entita è "PERCORSO", genera un array "coordinate_percorso" con 4-8 punti realistici consecutivi [ [lat, lng], [lat, lng], ... ] che formano la linea del valico montano o del sentiero.
+--- TAXONOMIA CATEGORIE A 360° ---
+Assegna una Categoria Principale e un Tag Contestuale tra le seguenti:
 
---- REGOLE RIGIDE DI OUTPUT ---
-- Devi rispondere ESCLUSIVAMENTE con un oggetto JSON valido.
-- Non usare blocchi di codice markdown (niente \`\`\`json), restituisci solo il testo JSON grezzo.
+1. Culture & History (Borghi, Musei, Monumenti, Castelli, Siti Archeologici, Chiese)
+2. Outdoor & Natura (Laghi, Mare & Spiagge, Cascate, Park & Giardini, Belvedere, Grotte)
+3. Drive & Ride (Passi Montani, Strade Panoramiche, Piste Ciclabili, Off-Road)
+4. Active & Sport (Trekking & Sentieri, Arrampicata, Sport Acquatici, Piste da Sci)
+5. Food & Drink (Ristoranti, Agriturismi, Rifugi, Bar & Aperitivi, Street Food)
+6. Leisure & Social (Piazze, Rooftop, Luoghi Insoliti / Secret Spots, Eventi & Mercatini)
 
---- STRUTTURA JSON ATTESA ---
+--- REGOLE RIGIDE DI ESTRAZIONE E VERIFICA ---
+1. SEARCH QUERY: Crea la stringa di ricerca ideale per Google Maps (es. "Nome Specifico + Località/Comune").
+2. CONFIDENZA GEOGRAFICA:
+   - Se il luogo è identificabile con certezza: "confidenza_alta": true.
+   - Se il contenuto è vago, generico o manca il nome/città: "confidenza_alta": false (segnalalo per evitare pin errati).
+3. TIPO ENTITÀ:
+   - "PUNTO" per luoghi specifici (ristorante, museo, belvedere, boutique, monumento).
+   - "PERCORSO" per itinerari lineari (passo montano, strada panoramica, sentiero, pista ciclabile).
+4. SINTESI MINIMAL: Massimo 2 frasi. Cattura l'essenza e i consigli pratici menzionati (es. "Miglior spot per il tramonto. Parcheggio limitato").
+5. OUTPUT: Rispondi ESCLUSIVAMENTE con un oggetto JSON valido. Nessun testo introduttivo/conclusivo, niente formattazione markdown (no \`\`\`json).
+
+--- STRUTTURA JSON DA RISPETTARE ---
 {
-  "nome": "Nome del luogo o percorso",
+  "confidenza_alta": true,
+  "query_search_maps": "Rifugio Lagazuoi Passo Falzarego Cortina",
   "tipo_entita": "PUNTO",
-  "categoria": "Passi di Montagna",
-  "citta_o_zona": "Santa Cristina in Val Gardena (Bolzano)",
-  "query_google_maps": "Pista Saslong Val Gardena",
-  "riassunto_ai_minimal": "Pista iconica con viste spettacolari. Ideale la mattina per neve compatta.",
-  "social_source_link": "link_originale_se_presente",
-  "coordinate": {
-    "lat": 46.5561,
-    "lng": 11.7709
-  },
-  "coordinate_percorso": [
-    [46.5561, 11.7709],
-    [46.5590, 11.7650],
-    [46.5620, 11.7580]
-  ],
-  "dati_grafici": {
-    "query_immagine_copertina": "Pista Saslong neve vista panoramica",
-    "colore_badge_consigliato": "#00A86B"
-  },
-  "metadata_ai_nascosti": {
-    "durata_stimata_minuti": 90,
-    "momento_ideale": "Mattina",
-    "meteo_consigliato": "Soleggiato",
-    "difficolta": "Media",
-    "dislivello_metri": 840
-  },
-  "stato_iniziale": {
-    "visitato": false,
-    "valutazione_community": 4.9
+  "categoria_principale": "Food & Drink",
+  "tag_contestuale": "Rifugi",
+  "badge_rapidi": ["Vista Panoramica", "Cucina Tipica", "In Quota"],
+  "sintesi": "Rifugio a 2752m con vista sulle Dolomiti. Raggiungibile in funivia dal Passo Falzarego o a piedi.",
+  "dettagli_algoritmo": {
+    "durata_minuti": 120,
+    "momento_ideale": "Tramonto",
+    "meteo_ideale": "Sereno"
   }
 }`;
 
@@ -101,11 +91,11 @@ app.post("/api/extract", async (req, res) => {
       });
     }
 
-    const prompt = `Sei l'assistente AI di Spotter. Analizza questo contenuto (Reel, TikTok, Shorts o testo dell'utente):\n\n"""\n${input_text.trim()}\n"""\n\n${
+    const prompt = `Sei il motore di analisi geografica per l'app "pinna". Analizza questo contenuto (Reel, TikTok, Shorts o testo):\n\n"""\n${input_text.trim()}\n"""\n\n${
       media_hint ? `Nota sul media: ${media_hint}\n` : ""
     }${
       video_source_link ? `Link video sorgente: ${video_source_link}\n` : ""
-    }\nEstrai le informazioni del luogo reale menzionato. Restituisci ESCLUSIVAMENTE il JSON grezzo seguendo lo schema.`;
+    }\nEstrai le informazioni del luogo reale menzionato. Rispondi ESCLUSIVAMENTE con un oggetto JSON valido seguendo scrupolosamente lo schema richiesto.`;
 
     const fetchGeminiWithTimeout = async () => {
       try {
@@ -148,23 +138,89 @@ app.post("/api/extract", async (req, res) => {
 
     const parsed = JSON.parse(rawText);
 
-    // Validate and guarantee coordinates
-    if (!parsed.coordinate || typeof parsed.coordinate.lat !== "number") {
-      const liveCoords = await geocodeLive(parsed.citta_o_zona || parsed.nome);
-      parsed.coordinate = liveCoords || estimateCoordinates(parsed.citta_o_zona || parsed.nome);
+    // Coordinate resolution: geocode via query_search_maps
+    const searchQuery = parsed.query_search_maps || parsed.nome || input_text;
+    let coords = parsed.coordinate;
+    if (!coords || typeof coords.lat !== "number") {
+      coords = (await geocodeLive(searchQuery)) || estimateCoordinates(searchQuery);
     }
 
-    // If it's a route and doesn't have a path, generate a realistic waypoint trail
-    if (parsed.tipo_entita === "PERCORSO" && (!parsed.coordinate_percorso || !parsed.coordinate_percorso.length)) {
-      parsed.coordinate_percorso = generateRouteWaypoints(parsed.coordinate.lat, parsed.coordinate.lng);
+    // Determine clean name and city
+    const queryParts = (parsed.query_search_maps || "").split(/\s+/);
+    const placeName = parsed.nome || (queryParts.length > 0 ? queryParts.slice(0, 3).join(" ") : "Luogo Estratto");
+    const cittaOrZona = parsed.citta_o_zona || (queryParts.length > 3 ? queryParts.slice(3).join(" ") : "Dolomiti / Italia");
+
+    // Route coordinates: ensure array of { lat, lng } (NEVER nested array)
+    let routeCoords: { lat: number; lng: number }[] | undefined = undefined;
+    if (parsed.tipo_entita === "PERCORSO") {
+      if (Array.isArray(parsed.coordinate_percorso) && parsed.coordinate_percorso.length > 0) {
+        routeCoords = parsed.coordinate_percorso.map((pt: any) =>
+          Array.isArray(pt) ? { lat: Number(pt[0]), lng: Number(pt[1]) } : { lat: Number(pt.lat), lng: Number(pt.lng) }
+        );
+      } else {
+        routeCoords = generateRouteWaypoints(coords.lat, coords.lng);
+      }
     }
 
-    if (video_source_link && !parsed.social_source_link) {
-      parsed.social_source_link = video_source_link;
-    }
+    const badgeColorMap: Record<string, string> = {
+      "Culture & History": "#7c3aed",
+      "Outdoor & Natura": "#059669",
+      "Drive & Ride": "#ea580c",
+      "Active & Sport": "#16a34a",
+      "Food & Drink": "#e11d48",
+      "Leisure & Social": "#2563eb",
+    };
+
+    const mainCategory = parsed.categoria_principale || parsed.categoria || "Outdoor & Natura";
+    const selectedBadgeColor = badgeColorMap[mainCategory] || "#4f46e5";
+
+    const unifiedResult = {
+      // Pinna exact schema
+      confidenza_alta: typeof parsed.confidenza_alta === "boolean" ? parsed.confidenza_alta : true,
+      query_search_maps: parsed.query_search_maps || `${placeName} ${cittaOrZona}`,
+      tipo_entita: parsed.tipo_entita || "PUNTO",
+      categoria_principale: mainCategory,
+      tag_contestuale: parsed.tag_contestuale || "Spot",
+      badge_rapidi: Array.isArray(parsed.badge_rapidi) ? parsed.badge_rapidi : ["Spot", mainCategory],
+      sintesi: parsed.sintesi || parsed.riassunto_ai_minimal || "Luogo estratto con successo.",
+      dettagli_algoritmo: {
+        durata_minuti: parsed.dettagli_algoritmo?.durata_minuti || parsed.metadata_ai_nascosti?.durata_stimata_minuti || 90,
+        momento_ideale: parsed.dettagli_algoritmo?.momento_ideale || parsed.metadata_ai_nascosti?.momento_ideale || "Giorno",
+        meteo_ideale: parsed.dettagli_algoritmo?.meteo_ideale || parsed.metadata_ai_nascosti?.meteo_consigliato || "Sereno",
+      },
+
+      // Geographic coordinates & waypoints
+      coordinate: coords,
+      coordinate_percorso: routeCoords,
+      geometria_percorso: routeCoords ? {
+        tipo_tracciato: mainCategory === "Drive & Ride" ? "STRADA" : "SENTIERO",
+        coordinate_linea: routeCoords,
+      } : undefined,
+
+      // Backwards-compatible mappings for UI components
+      nome: placeName,
+      categoria: mainCategory,
+      citta_o_zona: cittaOrZona,
+      query_google_maps: parsed.query_search_maps || `${placeName} ${cittaOrZona}`,
+      riassunto_ai_minimal: parsed.sintesi || parsed.riassunto_ai_minimal || "Luogo estratto con successo.",
+      social_source_link: video_source_link || parsed.social_source_link || undefined,
+      dati_grafici: {
+        query_immagine_copertina: `${placeName} panorama ${cittaOrZona}`,
+        colore_badge_consigliato: selectedBadgeColor,
+      },
+      metadata_ai_nascosti: {
+        durata_stimata_minuti: parsed.dettagli_algoritmo?.durata_minuti || 90,
+        momento_ideale: parsed.dettagli_algoritmo?.momento_ideale || "Giorno",
+        meteo_consigliato: parsed.dettagli_algoritmo?.meteo_ideale || "Sereno",
+      },
+      stato_iniziale: {
+        visitato: false,
+        valutazione_community: 4.8,
+      },
+    };
 
     return res.json({
-      data: parsed,
+      data: unifiedResult,
       source: "gemini-ai",
     });
   } catch (error: any) {
@@ -250,63 +306,97 @@ async function generateIntelligentDynamicExtraction(text: string, videoLink?: st
   const lower = (candidate + " " + placeName).toLowerCase();
 
   let tipo_entita: "PUNTO" | "PERCORSO" = "PUNTO";
-  let categoria = "Domenica in Montagna";
-  let badgeColor = "#4f46e5";
+  let categoria_principale: string = "Outdoor & Natura";
+  let tag_contestuale: string = "Belvedere";
+  let badgeColor = "#059669";
   let coverQuery = "panorama natura italia";
   let durata = 90;
   let momento = "Mattina";
-  let meteo = "Soleggiato";
+  let meteo = "Sereno";
+  let badges: string[] = ["Natura", "Belvedere", "Panoramico"];
   let coverUrl = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80";
 
   if (lower.includes("passo") || lower.includes("moto") || lower.includes("tornanti") || lower.includes("valico") || lower.includes("auto")) {
     tipo_entita = "PERCORSO";
-    categoria = "Passi di Montagna";
+    categoria_principale = "Drive & Ride";
+    tag_contestuale = "Passi Montani";
     badgeColor = "#ea580c";
     coverQuery = `${placeName} tornanti strada panorama`;
     durata = 120;
     momento = "Mattina presto";
+    badges = ["Passo Montano", "Curve Panoramiche", "Giro in Auto/Moto"];
     coverUrl = "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80";
   } else if (lower.includes("trekking") || lower.includes("sentiero") || lower.includes("rifugio") || lower.includes("escursion") || lower.includes("cima") || lower.includes("cresta")) {
     tipo_entita = "PERCORSO";
-    categoria = "Trekking";
+    categoria_principale = "Active & Sport";
+    tag_contestuale = lower.includes("rifugio") ? "Rifugi" : "Trekking & Sentieri";
     badgeColor = "#16a34a";
     coverQuery = `${placeName} sentiero rifugio montagna`;
     durata = 180;
     momento = "Mattina";
+    badges = ["Trekking", "Sentiero Alpino", "Vista Panoramica"];
     coverUrl = "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&auto=format&fit=crop&q=80";
   } else if (lower.includes("sci") || lower.includes("pista") || lower.includes("neve") || lower.includes("inverno")) {
     tipo_entita = "PERCORSO";
-    categoria = "Sci & Inverno";
+    categoria_principale = "Active & Sport";
+    tag_contestuale = "Piste da Sci";
     badgeColor = "#0284c7";
     coverQuery = `${placeName} sci neve pista`;
     durata = 240;
     momento = "Mattina";
+    badges = ["Piste da Sci", "Sport Invernali", "Neve Fresca"];
     coverUrl = "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80";
-  } else if (lower.includes("ristorante") || lower.includes("trattoria") || lower.includes("cibo") || lower.includes("osteria") || lower.includes("pizzeria") || lower.includes("baita")) {
+  } else if (lower.includes("ristorante") || lower.includes("trattoria") || lower.includes("cibo") || lower.includes("osteria") || lower.includes("pizzeria") || lower.includes("agriturismo") || lower.includes("baita")) {
     tipo_entita = "PUNTO";
-    categoria = "Ristoranti";
+    categoria_principale = "Food & Drink";
+    tag_contestuale = lower.includes("agriturismo") ? "Agriturismi" : lower.includes("baita") ? "Rifugi" : "Ristoranti";
     badgeColor = "#e11d48";
     coverQuery = `${placeName} cibo piatti tradizione`;
     durata = 90;
     momento = "Pranzo o Cena";
     meteo = "Indifferente";
+    badges = ["Cucina Tipica", "Specialità Locali", "Tradizione"];
     coverUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80";
   } else if (lower.includes("bici") || lower.includes("ciclabile") || lower.includes("bike")) {
     tipo_entita = "PERCORSO";
-    categoria = "Piste Ciclabili";
+    categoria_principale = "Drive & Ride";
+    tag_contestuale = "Piste Ciclabili";
     badgeColor = "#059669";
     coverQuery = `${placeName} pista ciclabile natura`;
     durata = 120;
     momento = "Pomeriggio";
+    badges = ["Pista Ciclabile", "Adatto a Bici", "Natura"];
     coverUrl = "https://images.unsplash.com/photo-1485965120184-e220f721d03e?w=800&auto=format&fit=crop&q=80";
-  } else if (lower.includes("passeggiata") || lower.includes("borgo") || lower.includes("castello") || lower.includes("belvedere")) {
+  } else if (lower.includes("borgo") || lower.includes("museo") || lower.includes("monumento") || lower.includes("castello") || lower.includes("chiesa")) {
     tipo_entita = "PUNTO";
-    categoria = "Passeggiate";
+    categoria_principale = "Culture & History";
+    tag_contestuale = lower.includes("castello") ? "Castelli" : lower.includes("museo") ? "Musei" : "Borghi";
     badgeColor = "#7c3aed";
-    coverQuery = `${placeName} borgo panorama centro`;
+    coverQuery = `${placeName} borgo storico panorama`;
     durata = 60;
-    momento = "Tramonto";
+    momento = "Pomeriggio";
+    badges = ["Borgo Storico", "Cultura & Storia", "Passeggiata"];
     coverUrl = "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800&auto=format&fit=crop&q=80";
+  } else if (lower.includes("lago") || lower.includes("spiaggia") || lower.includes("cascata") || lower.includes("mare") || lower.includes("grotta")) {
+    tipo_entita = "PUNTO";
+    categoria_principale = "Outdoor & Natura";
+    tag_contestuale = lower.includes("lago") ? "Laghi" : lower.includes("spiaggia") ? "Mare & Spiagge" : lower.includes("cascata") ? "Cascate" : "Belvedere";
+    badgeColor = "#059669";
+    coverQuery = `${placeName} natura lago mare panorama`;
+    durata = 120;
+    momento = "Mattina";
+    badges = ["Outdoor & Natura", "Paesaggio", "Relax"];
+    coverUrl = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80";
+  } else if (lower.includes("rooftop") || lower.includes("piazza") || lower.includes("aperitivo") || lower.includes("segreto") || lower.includes("secret")) {
+    tipo_entita = "PUNTO";
+    categoria_principale = "Leisure & Social";
+    tag_contestuale = lower.includes("rooftop") ? "Rooftop" : lower.includes("piazza") ? "Piazze" : "Luoghi Insoliti / Secret Spots";
+    badgeColor = "#2563eb";
+    coverQuery = `${placeName} rooftop piazza aperitivo vista`;
+    durata = 90;
+    momento = "Tramonto";
+    badges = ["Leisure & Social", "Secret Spot", "Vista Panoramica"];
+    coverUrl = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80";
   }
 
   // Attempt live geocoding on OpenStreetMap
@@ -314,24 +404,38 @@ async function generateIntelligentDynamicExtraction(text: string, videoLink?: st
   const coords = liveCoords || estimateCoordinates(placeName);
   const citta = liveCoords ? "Italia (Localizzato)" : "Dolomiti / Italia";
 
-  const riassunto = `Spot scoperto da Reel/TikTok. ${
-    tipo_entita === "PERCORSO"
-      ? "Percorso panoramico imperdibile ideale per ammirare il paesaggio circostante."
-      : "Luogo suggestivo ideale per visite, scatti fotografici e relax."
-  }`;
+  const riassunto = tipo_entita === "PERCORSO"
+    ? `Itinerario scenografico ideale per ${tag_contestuale.toLowerCase()}. Da percorrere al mattino per godersi il panorama.`
+    : `Suggestivo punto di interesse per ${tag_contestuale.toLowerCase()} a ${citta}. Ideale per visite e scatti fotografici.`;
 
   const routeWaypoints = tipo_entita === "PERCORSO" ? generateRouteWaypoints(coords.lat, coords.lng) : undefined;
+  const isConfident = Boolean(liveCoords || cleanText.length > 5);
 
   return {
-    nome: placeName,
+    confidenza_alta: isConfident,
+    query_search_maps: `${placeName} ${citta}`,
     tipo_entita,
-    categoria,
+    categoria_principale,
+    tag_contestuale,
+    badge_rapidi: badges,
+    sintesi: riassunto,
+    dettagli_algoritmo: {
+      durata_minuti: durata,
+      momento_ideale: momento,
+      meteo_ideale: meteo,
+    },
+    nome: placeName,
+    categoria: categoria_principale,
     citta_o_zona: citta,
     query_google_maps: `${placeName} ${citta}`,
     riassunto_ai_minimal: riassunto,
     social_source_link: effectiveLink || undefined,
     coordinate: coords,
-    coordinate_percorso: routeWaypoints,
+    coordinate_percorso: routeCoordsClean(routeWaypoints),
+    geometria_percorso: routeWaypoints ? {
+      tipo_tracciato: categoria_principale === "Drive & Ride" ? "STRADA" : "SENTIERO",
+      coordinate_linea: routeWaypoints,
+    } : undefined,
     dati_grafici: {
       query_immagine_copertina: coverQuery,
       colore_badge_consigliato: badgeColor,
@@ -347,6 +451,11 @@ async function generateIntelligentDynamicExtraction(text: string, videoLink?: st
       valutazione_community: 4.8,
     },
   };
+}
+
+function routeCoordsClean(pts?: { lat: number; lng: number }[]): { lat: number; lng: number }[] | undefined {
+  if (!pts) return undefined;
+  return pts.map(p => ({ lat: Number(p.lat), lng: Number(p.lng) }));
 }
 
 function estimateCoordinates(locationStr?: string): { lat: number; lng: number } {
@@ -369,17 +478,17 @@ function estimateCoordinates(locationStr?: string): { lat: number; lng: number }
   return { lat: 46.2 + Math.random() * 0.4, lng: 11.4 + Math.random() * 0.6 };
 }
 
-function generateRouteWaypoints(centerLat: number, centerLng: number): [number, number][] {
-  // Generates smooth serpentine hairpins representing a mountain road / pass
-  const points: [number, number][] = [];
+function generateRouteWaypoints(centerLat: number, centerLng: number): { lat: number; lng: number }[] {
+  // Generates smooth serpentine hairpins representing a mountain road or trail (array of objects, NO nested arrays)
+  const points: { lat: number; lng: number }[] = [];
   const count = 7;
   for (let i = 0; i < count; i++) {
     const progress = (i - count / 2) * 0.005;
     const wave = Math.sin(i * 1.5) * 0.006;
-    points.push([
-      Number((centerLat + progress).toFixed(5)),
-      Number((centerLng + wave).toFixed(5))
-    ]);
+    points.push({
+      lat: Number((centerLat + progress).toFixed(5)),
+      lng: Number((centerLng + wave).toFixed(5)),
+    });
   }
   return points;
 }

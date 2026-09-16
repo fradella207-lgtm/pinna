@@ -527,6 +527,22 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
 
                     <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
                       <div>
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <span 
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs"
+                            style={{ backgroundColor: place.dati_grafici?.colore_badge_consigliato || "#059669" }}
+                          >
+                            {place.categoria_principale || place.categoria}
+                          </span>
+                          {place.tag_contestuale && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 backdrop-blur-md text-white border border-white/20">
+                              {place.tag_contestuale}
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/25 backdrop-blur-md text-white">
+                            {place.tipo_entita === "PERCORSO" ? "Percorso" : "Punto"}
+                          </span>
+                        </div>
                         <h2 className="text-xl font-bold leading-tight drop-shadow-sm">
                           {placeName}
                         </h2>
@@ -551,6 +567,30 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {/* Low confidence warning banner */}
+                  {place.confidenza_alta === false && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                      <span className="text-base">⚠️</span>
+                      <div className="space-y-0.5">
+                        <span className="font-bold block text-xs text-amber-950">Posizione approssimativa o da verificare</span>
+                        <p className="text-[11px] text-amber-800 leading-relaxed">
+                          La geolocalizzazione automatica è avvenuta a bassa confidenza. Puoi usare la modalità Modifica (tasto matita in alto) per posizionare il punto o la via esatta.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rapid tags (badge_rapidi) */}
+                  {place.badge_rapidi && place.badge_rapidi.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {place.badge_rapidi.map((badge, bIdx) => (
+                        <span key={bIdx} className="px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold">
+                          #{badge}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Photos Carousel + Upload */}
                   <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-0.5">
@@ -623,10 +663,10 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Sintesi AI Spotter</span>
+                    <span>Sintesi AI pinna</span>
                   </div>
                   <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
-                    {place.riassunto_ai_minimal || "Spot panoramico scoperto dai consigli della community."}
+                    {place.sintesi || place.riassunto_ai_minimal || "Spot panoramico scoperto dai consigli della community."}
                   </p>
                 </div>
 

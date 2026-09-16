@@ -83,15 +83,28 @@ export const INITIAL_PLACES: SavedPlace[] = [
     },
     coordinate: { lat: 46.5292, lng: 10.4533 },
     coordinate_percorso: [
-      [46.5050, 10.4100],
-      [46.5120, 10.4210],
-      [46.5185, 10.4350],
-      [46.5240, 10.4420],
-      [46.5292, 10.4533],
-      [46.5380, 10.4710],
-      [46.5450, 10.4850],
-      [46.5560, 10.5100],
+      { lat: 46.5050, lng: 10.4100 },
+      { lat: 46.5120, lng: 10.4210 },
+      { lat: 46.5185, lng: 10.4350 },
+      { lat: 46.5240, lng: 10.4420 },
+      { lat: 46.5292, lng: 10.4533 },
+      { lat: 46.5380, lng: 10.4710 },
+      { lat: 46.5450, lng: 10.4850 },
+      { lat: 46.5560, lng: 10.5100 },
     ],
+    geometria_percorso: {
+      tipo_tracciato: "STRADA",
+      coordinate_linea: [
+        { lat: 46.5050, lng: 10.4100 },
+        { lat: 46.5120, lng: 10.4210 },
+        { lat: 46.5185, lng: 10.4350 },
+        { lat: 46.5240, lng: 10.4420 },
+        { lat: 46.5292, lng: 10.4533 },
+        { lat: 46.5380, lng: 10.4710 },
+        { lat: 46.5450, lng: 10.4850 },
+        { lat: 46.5560, lng: 10.5100 },
+      ],
+    },
     list_ids: ["list-giro-auto"],
     saved_at: "2025-06-10T14:30:00Z",
     visited: true,
@@ -135,14 +148,26 @@ export const INITIAL_PLACES: SavedPlace[] = [
     },
     coordinate: { lat: 46.4825, lng: 12.0536 },
     coordinate_percorso: [
-      [46.4620, 12.0150],
-      [46.4710, 12.0320],
-      [46.4780, 12.0450],
-      [46.4825, 12.0536],
-      [46.4890, 12.0680],
-      [46.4950, 12.0910],
-      [46.5020, 12.1150],
+      { lat: 46.4620, lng: 12.0150 },
+      { lat: 46.4710, lng: 12.0320 },
+      { lat: 46.4780, lng: 12.0450 },
+      { lat: 46.4825, lng: 12.0536 },
+      { lat: 46.4890, lng: 12.0680 },
+      { lat: 46.4950, lng: 12.0910 },
+      { lat: 46.5020, lng: 12.1150 },
     ],
+    geometria_percorso: {
+      tipo_tracciato: "STRADA",
+      coordinate_linea: [
+        { lat: 46.4620, lng: 12.0150 },
+        { lat: 46.4710, lng: 12.0320 },
+        { lat: 46.4780, lng: 12.0450 },
+        { lat: 46.4825, lng: 12.0536 },
+        { lat: 46.4890, lng: 12.0680 },
+        { lat: 46.4950, lng: 12.0910 },
+        { lat: 46.5020, lng: 12.1150 },
+      ],
+    },
     list_ids: ["list-giro-auto"],
     saved_at: "2025-06-12T16:00:00Z",
     visited: false,
@@ -187,14 +212,26 @@ export const INITIAL_PLACES: SavedPlace[] = [
     },
     coordinate: { lat: 46.6186, lng: 12.3028 },
     coordinate_percorso: [
-      [46.6120, 12.2960], // Rifugio Auronzo
-      [46.6155, 12.3080], // Forcella Lavaredo
-      [46.6230, 12.3140], // Rifugio Locatelli
-      [46.6275, 12.3050], // Laghi dei Piani
-      [46.6230, 12.2890], // Malga Grava Longa
-      [46.6160, 12.2880], // Col de Mezo
-      [46.6120, 12.2960], // Chiusura anello
+      { lat: 46.6120, lng: 12.2960 }, // Rifugio Auronzo
+      { lat: 46.6155, lng: 12.3080 }, // Forcella Lavaredo
+      { lat: 46.6230, lng: 12.3140 }, // Rifugio Locatelli
+      { lat: 46.6275, lng: 12.3050 }, // Laghi dei Piani
+      { lat: 46.6230, lng: 12.2890 }, // Malga Grava Longa
+      { lat: 46.6160, lng: 12.2880 }, // Col de Mezo
+      { lat: 46.6120, lng: 12.2960 }, // Chiusura anello
     ],
+    geometria_percorso: {
+      tipo_tracciato: "SENTIERO",
+      coordinate_linea: [
+        { lat: 46.6120, lng: 12.2960 },
+        { lat: 46.6155, lng: 12.3080 },
+        { lat: 46.6230, lng: 12.3140 },
+        { lat: 46.6275, lng: 12.3050 },
+        { lat: 46.6230, lng: 12.2890 },
+        { lat: 46.6160, lng: 12.2880 },
+        { lat: 46.6120, lng: 12.2960 },
+      ],
+    },
     list_ids: ["list-trekking-dolomiti"],
     saved_at: "2025-09-25T11:00:00Z",
     visited: true,
@@ -238,12 +275,22 @@ export const INITIAL_PLACES: SavedPlace[] = [
     },
     coordinate: { lat: 46.5986, lng: 11.7247 },
     coordinate_percorso: [
-      [46.5986, 11.7247],
-      [46.5910, 11.7120],
-      [46.5840, 11.7010],
-      [46.5770, 11.6850],
-      [46.5720, 11.6720], // Ortisei arrivo
+      { lat: 46.5986, lng: 11.7247 },
+      { lat: 46.5910, lng: 11.7120 },
+      { lat: 46.5840, lng: 11.7010 },
+      { lat: 46.5770, lng: 11.6850 },
+      { lat: 46.5720, lng: 11.6720 }, // Ortisei arrivo
     ],
+    geometria_percorso: {
+      tipo_tracciato: "PISTA_SCI",
+      coordinate_linea: [
+        { lat: 46.5986, lng: 11.7247 },
+        { lat: 46.5910, lng: 11.7120 },
+        { lat: 46.5840, lng: 11.7010 },
+        { lat: 46.5770, lng: 11.6850 },
+        { lat: 46.5720, lng: 11.6720 },
+      ],
+    },
     list_ids: ["list-sci-inverno"],
     saved_at: "2025-12-05T09:15:00Z",
     visited: false,
@@ -280,12 +327,22 @@ export const INITIAL_PLACES: SavedPlace[] = [
     },
     coordinate: { lat: 46.6946, lng: 12.0854 },
     coordinate_percorso: [
-      [46.6946, 12.0854],
-      [46.6870, 12.0820],
-      [46.6780, 12.0790],
-      [46.6690, 12.0760],
-      [46.6620, 12.0710], // Rifugio Biella
+      { lat: 46.6946, lng: 12.0854 },
+      { lat: 46.6870, lng: 12.0820 },
+      { lat: 46.6780, lng: 12.0790 },
+      { lat: 46.6690, lng: 12.0760 },
+      { lat: 46.6620, lng: 12.0710 }, // Rifugio Biella
     ],
+    geometria_percorso: {
+      tipo_tracciato: "SENTIERO",
+      coordinate_linea: [
+        { lat: 46.6946, lng: 12.0854 },
+        { lat: 46.6870, lng: 12.0820 },
+        { lat: 46.6780, lng: 12.0790 },
+        { lat: 46.6690, lng: 12.0760 },
+        { lat: 46.6620, lng: 12.0710 },
+      ],
+    },
     list_ids: ["list-trekking-dolomiti"],
     saved_at: "2025-07-15T08:00:00Z",
     visited: false,

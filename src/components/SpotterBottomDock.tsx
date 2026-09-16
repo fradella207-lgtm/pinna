@@ -54,7 +54,7 @@ export const SpotterBottomDock: React.FC<SpotterBottomDockProps> = ({
           whileHover={{ scale: 1.08 }}
           onClick={onOpenAddModal}
           className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_6px_20px_rgba(15,23,42,0.35)] hover:bg-slate-800 transition-colors focus:outline-none"
-          title="Aggiungi luogo o incolla link Reel/TikTok"
+          title="Aggiungi nuovo spot"
         >
           <Plus className="w-6 h-6 stroke-[2.75]" />
           <span className="sr-only">Aggiungi nuovo luogo</span>

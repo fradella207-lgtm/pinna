@@ -1,6 +1,6 @@
 {
-  "name": "Spotter",
-  "description": "Applicazione ultra-minimalista incentrata su mappa satellitare a schermo intero (Map-First) per estrarre, mappare e organizzare luoghi ed itinerari da Reel, TikTok o screenshot con dock di navigazione fluttuante.",
+  "name": "pinna",
+  "description": "pinna: Motore di analisi geografica e mappa satellitare per salvare, estrarre e posizionare luoghi ed itinerari da Reel, TikTok o testo.",
   "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

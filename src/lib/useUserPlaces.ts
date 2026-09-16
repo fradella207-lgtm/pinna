@@ -12,6 +12,49 @@ import { useAuth } from "../context/AuthContext";
 import { SavedPlace } from "../types";
 import { INITIAL_PLACES } from "../data/initialData";
 
+export function sanitizePlaceForFirestore<T extends Record<string, any>>(place: T): T {
+  if (!place || typeof place !== "object") return place;
+  const clean: any = { ...place };
+
+  // Convert coordinate_percorso from nested arrays [[lat, lng], ...] to array of objects [{ lat, lng }, ...]
+  if (Array.isArray(clean.coordinate_percorso)) {
+    clean.coordinate_percorso = clean.coordinate_percorso.map((pt: any) => {
+      if (Array.isArray(pt)) {
+        return { lat: Number(pt[0]), lng: Number(pt[1]) };
+      }
+      if (pt && typeof pt === "object") {
+        return { lat: Number(pt.lat), lng: Number(pt.lng) };
+      }
+      return pt;
+    });
+  }
+
+  // Sanitize geometria_percorso.coordinate_linea
+  if (clean.geometria_percorso && Array.isArray(clean.geometria_percorso.coordinate_linea)) {
+    clean.geometria_percorso = {
+      ...clean.geometria_percorso,
+      coordinate_linea: clean.geometria_percorso.coordinate_linea.map((pt: any) => {
+        if (Array.isArray(pt)) {
+          return { lat: Number(pt[0]), lng: Number(pt[1]) };
+        }
+        if (pt && typeof pt === "object") {
+          return { lat: Number(pt.lat), lng: Number(pt.lng) };
+        }
+        return pt;
+      }),
+    };
+  }
+
+  // Remove undefined values which Firestore rejects
+  Object.keys(clean).forEach((k) => {
+    if (clean[k] === undefined) {
+      delete clean[k];
+    }
+  });
+
+  return clean as T;
+}
+
 export function useUserPlaces() {
   const { user, loading: authLoading } = useAuth();
   const [places, setPlaces] = useState<SavedPlace[]>([]);
@@ -50,11 +93,12 @@ export function useUserPlaces() {
             const batch = writeBatch(db);
             INITIAL_PLACES.forEach((place) => {
               const placeDocRef = doc(db, "users", user.uid, "places", place.id);
-              batch.set(placeDocRef, {
+              const dataToSave = sanitizePlaceForFirestore({
                 ...place,
                 userId: user.uid,
                 visited: Boolean(place.stato_iniziale?.visitato || place.visited),
               });
+              batch.set(placeDocRef, dataToSave);
             });
             await batch.commit();
           } catch (err) {
@@ -94,11 +138,12 @@ export function useUserPlaces() {
 
     const placePath = `users/${user.uid}/places/${place.id}`;
     try {
-      await setDoc(doc(db, "users", user.uid, "places", place.id), {
+      const dataToSave = sanitizePlaceForFirestore({
         ...place,
         userId: user.uid,
         visited: Boolean(place.stato_iniziale?.visitato || place.visited),
-      }, { merge: true });
+      });
+      await setDoc(doc(db, "users", user.uid, "places", place.id), dataToSave, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, placePath);
     }

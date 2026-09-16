@@ -70,7 +70,7 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
 
   const handleShareWithFriends = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareText = `Ti consiglio questo posto scoperto con SpotFinder AI: ${placeName} (${placeLocation})! Guarda il percorso: ${googleMapsNavUrl}`;
+    const shareText = `Ti consiglio questo posto scoperto con pinna: ${placeName} (${placeLocation})! Guarda il percorso: ${googleMapsNavUrl}`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -186,8 +186,14 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
             </span>
 
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-              {place.categoria}
+              {place.categoria_principale || place.categoria}
             </span>
+
+            {place.tag_contestuale && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200/70 text-slate-800">
+                {place.tag_contestuale}
+              </span>
+            )}
 
             {place.stato_iniziale?.consigliato_algoritmo && (
               <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300/60">
@@ -232,9 +238,9 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
         </div>
 
         {/* Minimal AI Summary (Max 2 clean natural sentences) */}
-        {place.riassunto_ai_minimal && (
+        {(place.sintesi || place.riassunto_ai_minimal) && (
           <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-100/80">
-            {place.riassunto_ai_minimal}
+            {place.sintesi || place.riassunto_ai_minimal}
           </p>
         )}
 

@@ -8,7 +8,16 @@ export type GenreSubcategory =
   | "cultura_borghi"
   | "relax_panorami";
 
+export type MainCategory =
+  | "Culture & History"
+  | "Outdoor & Natura"
+  | "Drive & Ride"
+  | "Active & Sport"
+  | "Food & Drink"
+  | "Leisure & Social";
+
 export type ActivityCategory =
+  | MainCategory
   | "Passi di Montagna"
   | "Trekking"
   | "Domenica in Montagna"
@@ -20,6 +29,12 @@ export type ActivityCategory =
 
 export type ActivityFilterKey =
   | "tutti"
+  | "culture_history"
+  | "outdoor_natura"
+  | "drive_ride"
+  | "active_sport"
+  | "food_drink"
+  | "leisure_social"
   | "giro_auto"
   | "trekking"
   | "domenica_montagna"
@@ -86,10 +101,23 @@ export interface SavedPlace {
   
   // Geographic position & Route geometry
   coordinate: PlaceCoordinates;
-  coordinate_percorso?: PlaceCoordinates[] | [number, number][]; // Line coordinates for routes on satellite map
+  coordinate_percorso?: PlaceCoordinates[]; // Line coordinates for routes on satellite map (array of {lat, lng} - no nested arrays)
   geometria_percorso?: {
     tipo_tracciato?: string;
     coordinate_linea: PlaceCoordinates[];
+  };
+
+  // 360 Taxonomy & Pinna Geographic Engine fields
+  confidenza_alta?: boolean;
+  query_search_maps?: string;
+  categoria_principale?: MainCategory | string;
+  tag_contestuale?: string;
+  badge_rapidi?: string[];
+  sintesi?: string;
+  dettagli_algoritmo?: {
+    durata_minuti?: number | null;
+    momento_ideale?: string | null;
+    meteo_ideale?: string | null;
   };
 
   // User lists & timestamps
@@ -127,16 +155,30 @@ export interface CustomList {
 }
 
 export interface ExtractionResult {
-  nome: string;
+  // Pinna strict schema fields
+  confidenza_alta?: boolean;
+  query_search_maps?: string;
   tipo_entita: EntityType;
-  categoria: string;
-  citta_o_zona: string;
-  query_google_maps: string;
-  riassunto_ai_minimal: string;
+  categoria_principale?: MainCategory | string;
+  tag_contestuale?: string;
+  badge_rapidi?: string[];
+  sintesi?: string;
+  dettagli_algoritmo?: {
+    durata_minuti?: number | null;
+    momento_ideale?: string | null;
+    meteo_ideale?: string | null;
+  };
+
+  // Additional & compatibility fields
+  nome?: string;
+  categoria?: string;
+  citta_o_zona?: string;
+  query_google_maps?: string;
+  riassunto_ai_minimal?: string;
   social_source_link?: string;
-  dati_grafici: GraphicData;
-  metadata_ai_nascosti: HiddenAiMetadata;
-  stato_iniziale: PlaceState;
+  dati_grafici?: GraphicData;
+  metadata_ai_nascosti?: HiddenAiMetadata;
+  stato_iniziale?: PlaceState;
   coordinate?: PlaceCoordinates;
-  coordinate_percorso?: PlaceCoordinates[] | [number, number][];
+  coordinate_percorso?: PlaceCoordinates[];
 }
