@@ -1,23 +1,33 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { 
   Search, 
   MapPin, 
   Navigation, 
   CheckCircle2, 
   Circle, 
-  Clock,
-  ChevronRight,
-  Bookmark,
-  Camera,
-  FileText,
-  Edit3,
-  SlidersHorizontal,
-  Trash2
+  Clock, 
+  Bookmark, 
+  Camera, 
+  FileText, 
+  SlidersHorizontal, 
+  Trash2, 
+  X, 
+  RotateCcw, 
+  Check, 
+  Compass,
+  Building2,
+  Globe
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, ActivityFilterKey } from "../types";
 import { ACTIVITY_FILTERS, getActivityColor, getActivityIcon } from "../data/categories";
 import { UserAccountButton } from "./UserAccountButton";
+import { 
+  getInsertedCountries,
+  getInsertedRegionsAndProvinces, 
+  detectPlaceRegionsAndProvinces,
+  getCountryFlag
+} from "../lib/geoItaly";
 
 interface SavedPlacesDrawerProps {
   isOpen: boolean;
@@ -36,6 +46,12 @@ interface SavedPlacesDrawerProps {
   onSelectActivity: (key: ActivityFilterKey) => void;
   specialFilter: string;
   onSelectSpecialFilter: (type: any) => void;
+  activeCountry?: string;
+  onSelectCountry?: (country: string) => void;
+  activeRegion: string;
+  onSelectRegion: (reg: string) => void;
+  activeProvince: string;
+  onSelectProvince: (prov: string) => void;
 }
 
 export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
@@ -49,18 +65,68 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
   onSearchChange,
   activeActivity,
   onSelectActivity,
+  specialFilter,
+  onSelectSpecialFilter,
+  activeCountry = "tutti",
+  onSelectCountry,
+  activeRegion,
+  onSelectRegion,
+  activeProvince,
+  onSelectProvince,
 }) => {
   // Main view segment: "to_visit" (colored) vs "visited" (gray/desaturated)
   const [visitedTab, setVisitedTab] = useState<"to_visit" | "visited">("to_visit");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  // Dynamic calculation of inserted countries across all user places
+  const insertedCountries = useMemo(() => {
+    return getInsertedCountries(allPlaces);
+  }, [allPlaces]);
+
+  // Dynamic calculation of inserted regions and provinces across all user places
+  const { insertedRegions, insertedProvinces } = useMemo(() => {
+    return getInsertedRegionsAndProvinces(allPlaces, activeCountry);
+  }, [allPlaces, activeCountry]);
+
+  // If a region is active, filter province suggestions to that region
+  const provincesForDisplay = useMemo(() => {
+    if (activeRegion === "tutte") return insertedProvinces;
+    return insertedProvinces.filter((p) => p.region.toLowerCase() === activeRegion.toLowerCase());
+  }, [insertedProvinces, activeRegion]);
 
   if (!isOpen) return null;
 
-  // Separate all places into To Visit and Visited
+  // Separate places into To Visit and Visited
   const toVisitPlaces = places.filter((p) => !(p.stato_iniziale?.visitato || p.visited));
   const visitedPlaces = places.filter((p) => Boolean(p.stato_iniziale?.visitato || p.visited));
 
   const currentDisplayPlaces = visitedTab === "to_visit" ? toVisitPlaces : visitedPlaces;
+
+  // Check if any non-default filter is active
+  const hasActiveFilter = 
+    activeActivity !== "tutti" || 
+    specialFilter !== "all" || 
+    (activeCountry && activeCountry !== "tutti") ||
+    activeRegion !== "tutte" || 
+    activeProvince !== "tutte";
+
+  const activeFilterCount = 
+    (activeActivity !== "tutti" ? 1 : 0) + 
+    (specialFilter !== "all" ? 1 : 0) + 
+    (activeCountry && activeCountry !== "tutti" ? 1 : 0) + 
+    (activeRegion !== "tutte" ? 1 : 0) + 
+    (activeProvince !== "tutte" ? 1 : 0);
+
+  const activeActivityLabel = ACTIVITY_FILTERS.find((f) => f.key === activeActivity)?.label || activeActivity;
+
+  const handleResetFilters = () => {
+    onSelectCountry?.("tutti");
+    onSelectActivity("tutti");
+    onSelectSpecialFilter("all");
+    onSelectRegion("tutte");
+    onSelectProvince("tutte");
+  };
 
   return (
     <motion.div 
@@ -71,9 +137,9 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
       transition={{ duration: 0.22, ease: "easeOut" }}
       className="fixed inset-0 z-40 bg-slate-50 flex flex-col text-slate-900 overflow-hidden"
     >
-      {/* 1. Top Refined Header (Pure Minimalist, NO 'Nuovo Spot' and NO 'Mappa' buttons) */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* 1. Header Desktop & Mobile */}
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
             <Bookmark className="w-4 h-4 fill-white" />
           </div>
@@ -82,14 +148,14 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
               I Miei Luoghi
             </h1>
             <p className="text-[11px] text-slate-500 font-medium">
-              {allPlaces.length} salvati • {visitedPlaces.length} già visitati
+              {allPlaces.length} salvati • {visitedPlaces.length} visitati
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Quick Search inside top bar on larger screens */}
-          <div className="relative flex-1 max-w-xs hidden sm:block">
+        {/* Desktop Search + Filter Button */}
+        <div className="hidden sm:flex items-center gap-2 flex-1 max-w-md justify-end">
+          <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
             <input
               type="text"
@@ -109,32 +175,74 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
             )}
           </div>
 
+          {/* Desktop Filter Button next to search */}
+          <button
+            type="button"
+            onClick={() => setIsFilterModalOpen(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border shrink-0 ${
+              hasActiveFilter
+                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-2xs"
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filtri</span>
+            {hasActiveFilter && (
+              <span className="w-4 h-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           <UserAccountButton />
         </div>
       </header>
 
       {/* 2. Controls & Segment Bar */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 py-2.5 space-y-2.5">
+      <div className="bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 py-2.5 space-y-2">
         
-        {/* Mobile Search Bar */}
-        <div className="relative w-full sm:hidden">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Cerca nei tuoi luoghi..."
-            className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-slate-900 transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange("")}
-              className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-700 text-xs"
-            >
-              ✕
-            </button>
-          )}
+        {/* Mobile Search Bar + Filter Button side-by-side */}
+        <div className="flex sm:hidden items-center gap-2 w-full">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Cerca nei tuoi luoghi..."
+              className="w-full pl-8 pr-7 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-slate-900 transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Mobile Filter button adjacent to search */}
+          <button
+            type="button"
+            onClick={() => setIsFilterModalOpen(true)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+              hasActiveFilter
+                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-2xs"
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filtri</span>
+            {hasActiveFilter && (
+              <span className="w-4 h-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Fluid Segment Switcher: Da Visitare vs Già Visti */}
@@ -194,122 +302,189 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
           </div>
         </div>
 
-        {/* Minimal Category Filter Line */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[11px] max-w-xl mx-auto">
-          <button
-            type="button"
-            onClick={() => onSelectActivity("tutti")}
-            className={`px-3 py-1 rounded-full font-medium shrink-0 transition-all ${
-              activeActivity === "tutti"
-                ? "bg-slate-900 text-white font-semibold shadow-xs"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Tutte
-          </button>
-          {ACTIVITY_FILTERS.map((f) => {
-            const isActive = activeActivity === f.key;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => onSelectActivity(f.key)}
-                className={`px-2.5 py-1 rounded-full font-medium shrink-0 transition-all flex items-center gap-1 ${
-                  isActive
-                    ? "bg-slate-900 text-white font-semibold shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                <span>{getActivityIcon(f.categoryName)}</span>
-                <span>{f.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Active Filter Reminder Chips (Removable pills) */}
+        {hasActiveFilter && (
+          <div className="flex items-center justify-center gap-1.5 flex-wrap pt-0.5 max-w-2xl mx-auto">
+            <span className="text-[11px] text-slate-400 font-medium">Attivi:</span>
+
+            {/* Country Chip */}
+            {activeCountry && activeCountry !== "tutti" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200 text-[11px] font-semibold">
+                <Globe className="w-3 h-3 text-sky-500" />
+                <span>{getCountryFlag(activeCountry)} {activeCountry}</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectCountry?.("tutti")}
+                  className="hover:text-sky-950 ml-0.5 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {/* Region Chip */}
+            {activeRegion !== "tutte" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 text-[11px] font-semibold">
+                <MapPin className="w-3 h-3 text-rose-500" />
+                <span>{activeRegion}</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectRegion("tutte")}
+                  className="hover:text-rose-950 ml-0.5 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {/* Province Chip */}
+            {activeProvince !== "tutte" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-semibold">
+                <Building2 className="w-3 h-3 text-amber-600" />
+                <span>Prov. {activeProvince}</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectProvince("tutte")}
+                  className="hover:text-amber-950 ml-0.5 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {/* Category Chip */}
+            {activeActivity !== "tutti" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-semibold">
+                <span>{getActivityIcon(activeActivityLabel)}</span>
+                <span>{activeActivityLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectActivity("tutti")}
+                  className="hover:text-rose-300 ml-0.5"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {/* Special Filter Chip */}
+            {specialFilter !== "all" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-800 text-white text-[11px] font-semibold">
+                <span>{specialFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectSpecialFilter("all")}
+                  className="hover:text-rose-300 ml-0.5"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold underline ml-1"
+            >
+              Azzera tutti
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 3. Places Grid (Opens full detail view directly on click, without jumping to the map!) */}
+      {/* 3. Places Grid */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-5 pb-32">
         <div className="max-w-5xl mx-auto">
           <AnimatePresence mode="wait">
             {currentDisplayPlaces.length === 0 ? (
               <motion.div 
-                key="empty"
-                initial={{ opacity: 0, scale: 0.96 }}
+                key="empty-state"
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-center py-20 px-4 max-w-sm mx-auto space-y-3"
+                className="py-16 text-center max-w-md mx-auto space-y-3"
               >
-                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-400 shadow-xs">
-                  {visitedTab === "visited" ? (
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                  ) : (
-                    <Bookmark className="w-6 h-6 text-slate-400" />
-                  )}
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                  <Compass className="w-6 h-6" />
                 </div>
                 <h3 className="text-sm font-bold text-slate-800">
-                  {visitedTab === "visited"
-                    ? "Nessun luogo segnato come visitato"
-                    : "Nessun luogo da visitare"}
+                  Nessun luogo trovato
                 </h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  {visitedTab === "visited"
-                    ? "Quando visiti uno spot, tocca il cerchietto per segnarlo come visitato: diventerà grigio ed entrerà qui nel tuo diario di viaggio."
-                    : "Usa il pulsante (+) nella barra in basso per aggiungere o incollare un nuovo spot."}
+                  {hasActiveFilter || searchQuery
+                    ? "Prova a modificare o azzerare i filtri di ricerca per visualizzare più luoghi salvati."
+                    : visitedTab === "to_visit"
+                    ? "Non hai ancora luoghi da visitare. Salva nuovi spot dalla mappa o aggiungili con il pulsante (+)!"
+                    : "Non hai ancora segnato nessun luogo come visitato. Quando completi una visita, premi 'Segna come visitato'!"}
                 </p>
+                {hasActiveFilter && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="mt-2 px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors"
+                  >
+                    Azzera filtri
+                  </button>
+                )}
               </motion.div>
             ) : (
               <motion.div 
-                key={visitedTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.18 }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5"
+                key={`places-grid-${visitedTab}`}
+                layout
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
               >
                 {currentDisplayPlaces.map((place) => {
                   const isVisited = Boolean(place.stato_iniziale?.visitato || place.visited);
-                  const placeName = place.nome || place.nome_luogo;
-                  const googleMapsNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.coordinate?.lat},${place.coordinate?.lng}`;
-                  const coverImg = (place.user_photos && place.user_photos[0]) ||
-                    place.dati_grafici?.cover_image_url || 
-                    "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=500&auto=format&fit=crop&q=80";
+                  const isDeleting = confirmDeleteId === place.id;
+                  const placeName = place.nome || place.nome_luogo || "Spot";
+                  const coverImage = place.cover_image || place.foto_principale || "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=60";
+                  
+                  // Detect place region & province for quick visual tag
+                  const geo = detectPlaceRegionsAndProvinces(place);
+                  const displayReg = place.regione || geo.primaryRegion;
+                  const displayProv = place.provincia || geo.primaryProvince?.code;
 
                   return (
                     <motion.div
                       key={place.id}
-                      id={`saved-card-${place.id}`}
-                      whileHover={{ y: -3 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => onOpenDetails(place)} // Opens full detail view directly in-place!
-                      className={`group relative bg-white rounded-2xl p-3 border transition-all duration-200 cursor-pointer flex flex-col justify-between ${
+                      layout
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.18 }}
+                      className={`group relative flex flex-col justify-between rounded-2xl border transition-all duration-200 overflow-hidden ${
                         isVisited
-                          ? "border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300"
-                          : "border-slate-200/80 hover:border-slate-300 shadow-xs hover:shadow-md"
+                          ? "bg-white/80 border-slate-200/70 hover:border-slate-300 shadow-2xs opacity-90"
+                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-md shadow-xs"
                       }`}
                     >
-                      <div>
-                        {/* Cover Image Container */}
-                        <div className="relative w-full h-40 rounded-xl overflow-hidden bg-slate-100 mb-2.5">
+                      {/* Clickable Card Body */}
+                      <div 
+                        onClick={() => onOpenDetails(place)}
+                        className="p-3 cursor-pointer flex-1 flex flex-col"
+                      >
+                        {/* Thumbnail & Badges */}
+                        <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-100 mb-2.5 border border-slate-100">
                           <img
-                            src={coverImg}
+                            src={coverImage}
                             alt={placeName}
                             referrerPolicy="no-referrer"
-                            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
-                              isVisited
-                                ? "grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100"
-                                : ""
+                            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-102 ${
+                              isVisited ? "grayscale contrast-105" : ""
                             }`}
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
 
                           {/* Category Badge */}
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-white/95 backdrop-blur-md text-[10px] font-bold text-slate-800 shadow-xs flex items-center gap-1">
-                            <span>{getActivityIcon(place.categoria)}</span>
-                            <span>{place.categoria}</span>
+                          <div className="absolute top-2 left-2 flex items-center gap-1">
+                            <span 
+                              className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs"
+                              style={{ backgroundColor: getActivityColor(place.categoria_principale || place.categoria) }}
+                            >
+                              {place.categoria_principale || place.categoria}
+                            </span>
                           </div>
 
-                          {/* Visited Status Button */}
+                          {/* Quick Visited Toggle on Card */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -336,6 +511,7 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                             )}
                           </button>
 
+                          {/* Location string overlay */}
                           <div className="absolute bottom-2 left-2 right-2 text-white">
                             <span className="text-[11px] font-medium text-slate-200 flex items-center gap-1 drop-shadow-sm truncate">
                               <MapPin className="w-3 h-3 text-rose-300 shrink-0" />
@@ -344,7 +520,7 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                           </div>
                         </div>
 
-                        {/* Title & Notes */}
+                        {/* Title */}
                         <div className="flex items-start justify-between gap-1.5">
                           <h3 className={`font-bold text-sm leading-snug tracking-tight truncate transition-colors ${
                             isVisited ? "text-slate-600 group-hover:text-slate-900" : "text-slate-900 group-hover:text-indigo-600"
@@ -353,13 +529,31 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                           </h3>
                         </div>
 
+                        {/* Region & Province Badge */}
+                        {(displayReg || displayProv) && (
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {displayReg && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 font-semibold text-[10px]">
+                                <MapPin className="w-2.5 h-2.5 text-rose-500" />
+                                <span>{displayReg}</span>
+                              </span>
+                            )}
+                            {displayProv && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold text-[10px]">
+                                <span>Prov. {displayProv}</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Notes or Summary */}
                         {place.user_notes ? (
                           <p className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200/60 rounded-lg px-2 py-1 mt-1.5 line-clamp-1 flex items-center gap-1 font-medium">
                             <FileText className="w-3 h-3 shrink-0 text-amber-600" />
                             <span className="truncate">"{place.user_notes}"</span>
                           </p>
                         ) : place.riassunto_ai_minimal ? (
-                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                          <p className="text-[11px] text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
                             {place.riassunto_ai_minimal}
                           </p>
                         ) : null}
@@ -383,42 +577,60 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                       </div>
 
                       {/* Card Footer Actions */}
-                      <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-slate-100 bg-slate-50/50">
                         <div className="flex items-center gap-1.5">
                           <a
                             id={`btn-nav-place-${place.id}`}
-                            href={googleMapsNavUrl}
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${place.coordinate?.lat || 46.5},${place.coordinate?.lng || 11.5}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white font-semibold text-[11px] transition-all"
+                            className="p-1.5 rounded-lg bg-white hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 border border-slate-200 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                            title="Naviga su Google Maps"
                           >
-                            <Navigation className="w-3 h-3" />
-                            <span>Maps</span>
+                            <Navigation className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="hidden sm:inline">Naviga</span>
                           </a>
 
-                          {/* Quick Delete Spot Button */}
-                          {onDeletePlace && (
-                            confirmDeleteId === place.id ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenDetails(place);
+                            }}
+                            className="p-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition-colors text-[11px] font-semibold"
+                          >
+                            Dettagli
+                          </button>
+                        </div>
+
+                        {/* Direct Delete Trigger */}
+                        {onDeletePlace && (
+                          <div className="relative">
+                            {isDeleting ? (
                               <div 
-                                onClick={(e) => e.stopPropagation()} 
-                                className="flex items-center gap-1 px-2 py-1 rounded-xl bg-rose-50 border border-rose-200 animate-in fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 bg-rose-50 border border-rose-200 rounded-lg p-1 animate-in fade-in"
                               >
-                                <span className="text-[10px] font-bold text-rose-700">Eliminare?</span>
+                                <span className="text-[10px] font-bold text-rose-700 px-1">Elimina?</span>
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     onDeletePlace(place.id);
                                     setConfirmDeleteId(null);
                                   }}
-                                  className="px-1.5 py-0.5 rounded-md bg-rose-600 text-white font-bold text-[10px] hover:bg-rose-700"
+                                  className="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-700"
                                 >
                                   Sì
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setConfirmDeleteId(null)}
-                                  className="px-1.5 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-semibold text-[10px]"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmDeleteId(null);
+                                  }}
+                                  className="px-1.5 py-0.5 rounded bg-white text-slate-600 text-[10px] font-semibold border border-slate-200"
                                 >
                                   No
                                 </button>
@@ -430,20 +642,14 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                                   e.stopPropagation();
                                   setConfirmDeleteId(place.id);
                                 }}
-                                className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                title="Elimina spot dai salvati"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                title="Elimina spot"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            )
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">
-                          <Edit3 className="w-3 h-3 text-slate-400 group-hover:text-slate-700" />
-                          <span>Dettagli</span>
-                          <ChevronRight className="w-3 h-3 text-slate-400" />
-                        </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   );
@@ -453,6 +659,343 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
           </AnimatePresence>
         </div>
       </main>
+
+      {/* 4. MODALE FILTRI COMPATTO (Regione, Provincia, Categoria, Speciale) */}
+      <AnimatePresence>
+        {isFilterModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setIsFilterModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Filtra i Tuoi Luoghi
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Filtra per regione, provincia, categoria o tipologia
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Filter Options */}
+              <div className="p-6 overflow-y-auto space-y-5">
+
+                {/* 0. STATO / NAZIONE (Dei Luoghi Inseriti) */}
+                {insertedCountries.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-sky-500" />
+                        <span>Stato / Nazione ({insertedCountries.length} presenti)</span>
+                      </label>
+                      {activeCountry !== "tutti" && (
+                        <button
+                          type="button"
+                          onClick={() => onSelectCountry?.("tutti")}
+                          className="text-xs font-semibold text-sky-600 hover:underline"
+                        >
+                          Tutti gli stati
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectCountry?.("tutti")}
+                        className={`p-2 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                          activeCountry === "tutti"
+                            ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                            : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span>🌍</span>
+                          <span>Tutti gli stati</span>
+                        </span>
+                        {activeCountry === "tutti" && <Check className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {insertedCountries.map((c) => {
+                        const isSelected = activeCountry.toLowerCase() === c.name.toLowerCase();
+                        return (
+                          <button
+                            key={c.name}
+                            type="button"
+                            onClick={() => onSelectCountry?.(isSelected ? "tutti" : c.name)}
+                            className={`p-2 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                              isSelected
+                                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                            }`}
+                          >
+                            <span className="truncate flex items-center gap-1.5">
+                              <span>{c.flag}</span>
+                              <span className="truncate">{c.name}</span>
+                            </span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                              isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"
+                            }`}>
+                              {c.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 1. REGIONE (Dei Luoghi Inseriti) */}
+                {insertedRegions.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Regione ({insertedRegions.length} presenti)</span>
+                      </label>
+                      {activeRegion !== "tutte" && (
+                        <button
+                          type="button"
+                          onClick={() => onSelectRegion("tutte")}
+                          className="text-xs font-semibold text-rose-600 hover:underline"
+                        >
+                          Mostra tutte
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectRegion("tutte")}
+                        className={`p-2 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                          activeRegion === "tutte"
+                            ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                            : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                        }`}
+                      >
+                        <span>Tutte le regioni</span>
+                        {activeRegion === "tutte" && <Check className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {insertedRegions.map((reg) => {
+                        const isSelected = activeRegion.toLowerCase() === reg.name.toLowerCase();
+                        return (
+                          <button
+                            key={reg.name}
+                            type="button"
+                            onClick={() => onSelectRegion(isSelected ? "tutte" : reg.name)}
+                            className={`p-2 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                              isSelected
+                                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                            }`}
+                          >
+                            <span className="truncate">{reg.name}</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                              isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"
+                            }`}>
+                              {reg.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. PROVINCIA (Dei Luoghi Inseriti) */}
+                {provincesForDisplay.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-amber-500" />
+                        <span>
+                          Provincia {activeRegion !== "tutte" ? `in ${activeRegion}` : "inserite"} ({provincesForDisplay.length})
+                        </span>
+                      </label>
+                      {activeProvince !== "tutte" && (
+                        <button
+                          type="button"
+                          onClick={() => onSelectProvince("tutte")}
+                          className="text-xs font-semibold text-amber-600 hover:underline"
+                        >
+                          Mostra tutte
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectProvince("tutte")}
+                        className={`p-2 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                          activeProvince === "tutte"
+                            ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                            : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                        }`}
+                      >
+                        <span>Tutte le province</span>
+                        {activeProvince === "tutte" && <Check className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {provincesForDisplay.map((prov) => {
+                        const isSelected = activeProvince.toLowerCase() === prov.code.toLowerCase() || 
+                                           activeProvince.toLowerCase() === prov.name.toLowerCase();
+                        return (
+                          <button
+                            key={prov.code}
+                            type="button"
+                            onClick={() => onSelectProvince(isSelected ? "tutte" : prov.code)}
+                            className={`p-2 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                              isSelected
+                                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                            }`}
+                          >
+                            <span className="truncate flex items-center gap-1">
+                              <span>{prov.name}</span>
+                              <span className={`text-[10px] font-mono ${
+                                isSelected ? "text-amber-200 font-bold" : "text-slate-400"
+                              }`}>
+                                ({prov.code})
+                              </span>
+                            </span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                              isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"
+                            }`}>
+                              {prov.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Categoria Spot */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                    Categoria Spot
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelectActivity("tutti")}
+                      className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                        activeActivity === "tutti"
+                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                          : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                      }`}
+                    >
+                      <span>Tutte le categorie</span>
+                      {activeActivity === "tutti" && <Check className="w-3.5 h-3.5" />}
+                    </button>
+
+                    {ACTIVITY_FILTERS.map((f) => {
+                      const isSelected = activeActivity === f.key;
+                      return (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => onSelectActivity(f.key)}
+                          className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all flex items-center justify-between ${
+                            isSelected
+                              ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                              : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <span>{getActivityIcon(f.categoryName)}</span>
+                            <span className="truncate">{f.label}</span>
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. Special / Algorithm Filters */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                    Filtro Speciale
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {[
+                      { id: "all", label: "Tutti gli spot" },
+                      { id: "top_recommended", label: "⭐ Più consigliati" },
+                      { id: "with_video", label: "📹 Con video/social" },
+                    ].map((opt) => {
+                      const isSelected = specialFilter === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => onSelectSpecialFilter(opt.id)}
+                          className={`p-2.5 rounded-xl border text-left font-bold transition-all flex items-center justify-between ${
+                            isSelected
+                              ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                              : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition-colors flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Azzera tutti</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all"
+                >
+                  Mostra Luoghi ({currentDisplayPlaces.length})
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

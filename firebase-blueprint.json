@@ -40,6 +40,20 @@
         "geometria_percorso": { "type": "object" }
       },
       "required": ["id", "userId", "nome", "coordinate"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["bug", "feature", "place_correction", "general"] },
+        "message": { "type": "string", "maxLength": 2000 },
+        "rating": { "type": "number" },
+        "email": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "type", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -50,6 +64,10 @@
     "/users/{userId}/places/{placeId}": {
       "entity": "Place",
       "description": "User personal saved spots, notes, and visited status"
+    },
+    "/feedback/{feedbackId}": {
+      "entity": "Feedback",
+      "description": "User feedback, bug reports, and improvement suggestions"
     }
   }
 }

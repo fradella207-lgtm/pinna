@@ -124,6 +124,11 @@ export interface SavedPlace {
   list_ids: string[];
   saved_at: string;
   
+  // Geographic administrative tags
+  paese?: string;
+  regione?: string;
+  provincia?: string;
+  
   // Compatibility helpers
   nome_luogo?: string; // alias to nome
   sottocategoria?: string;

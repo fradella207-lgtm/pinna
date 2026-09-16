@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, CustomList } from "../types";
 import { getActivityIcon, ACTIVITY_FILTERS } from "../data/categories";
 import { InstagramStoryRecapModal } from "./InstagramStoryRecapModal";
+import { detectPlaceRegionsAndProvinces, getCountryFlag } from "../lib/geoItaly";
 
 interface PlaceDetailModalProps {
   place: SavedPlace | null;
@@ -61,6 +62,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   // Form Fields for Editing
   const [editName, setEditName] = useState(place.nome || place.nome_luogo || "");
   const [editLocation, setEditLocation] = useState(place.citta_o_zona || "");
+  const [editCountry, setEditCountry] = useState(place.paese || "Italia");
   const [editCategory, setEditCategory] = useState(place.categoria || "Passi di Montagna");
   const [editSummary, setEditSummary] = useState(place.riassunto_ai_minimal || "");
   const [editDuration, setEditDuration] = useState(place.metadata_ai_nascosti?.durata_stimata_minuti || 90);
@@ -72,6 +74,8 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   const [editIsRoute, setEditIsRoute] = useState(place.tipo_entita === "PERCORSO");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
 
+  const detectedGeo = detectPlaceRegionsAndProvinces(place);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state when selected place changes
@@ -80,6 +84,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
       setPersonalNotes(place.user_notes || "");
       setEditName(place.nome || place.nome_luogo || "");
       setEditLocation(place.citta_o_zona || "");
+      setEditCountry(place.paese || "Italia");
       setEditCategory(place.categoria || "Passi di Montagna");
       setEditSummary(place.riassunto_ai_minimal || "");
       setEditDuration(place.metadata_ai_nascosti?.durata_stimata_minuti || 90);
@@ -146,11 +151,19 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
 
   const handleSaveEdits = () => {
     if (!onUpdatePlace) return;
+    const editedGeo = detectPlaceRegionsAndProvinces({
+      paese: editCountry,
+      citta_o_zona: editLocation.trim(),
+      nome: editName.trim(),
+    });
     const updated: SavedPlace = {
       ...place,
       nome: editName.trim(),
       nome_luogo: editName.trim(),
       citta_o_zona: editLocation.trim(),
+      paese: editCountry || editedGeo.primaryCountry || place.paese,
+      regione: editedGeo.primaryRegion || place.regione,
+      provincia: editedGeo.primaryProvince?.code || place.provincia,
       categoria: editCategory,
       tipo_entita: editIsRoute ? "PERCORSO" : "PUNTO",
       riassunto_ai_minimal: editSummary.trim(),
@@ -339,9 +352,37 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                     <input
                       type="text"
                       value={editLocation}
-                      onChange={(e) => setEditLocation(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditLocation(val);
+                        const det = detectPlaceRegionsAndProvinces({ citta_o_zona: val });
+                        if (det.allCountries && det.allCountries.length > 0 && det.primaryCountry !== editCountry) {
+                          setEditCountry(det.primaryCountry);
+                        }
+                      }}
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-none"
                     />
+                    {/* Country Selector in Edit Mode */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1.5 pb-0.5">
+                      {["Italia", "Svizzera", "Francia", "Austria", "Germania", "Slovenia", "Spagna", "Norvegia"].map((cName) => {
+                        const isSel = editCountry.toLowerCase() === cName.toLowerCase();
+                        return (
+                          <button
+                            key={cName}
+                            type="button"
+                            onClick={() => setEditCountry(cName)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 transition-all flex items-center gap-1 ${
+                              isSel
+                                ? "bg-slate-900 text-white shadow-xs"
+                                : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                            }`}
+                          >
+                            <span>{getCountryFlag(cName)}</span>
+                            <span>{cName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -542,6 +583,22 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/25 backdrop-blur-md text-white">
                             {place.tipo_entita === "PERCORSO" ? "Percorso" : "Punto"}
                           </span>
+                          {(place.paese || detectedGeo.primaryCountry) && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 backdrop-blur-md text-amber-200 border border-amber-400/30 flex items-center gap-1">
+                              <span>{getCountryFlag(place.paese || detectedGeo.primaryCountry || "Italia")}</span>
+                              <span>{place.paese || detectedGeo.primaryCountry}</span>
+                            </span>
+                          )}
+                          {(place.regione || detectedGeo.primaryRegion) && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 backdrop-blur-md text-emerald-200 border border-emerald-400/30">
+                              {place.regione || detectedGeo.primaryRegion}
+                            </span>
+                          )}
+                          {(place.provincia || detectedGeo.primaryProvince) && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 backdrop-blur-md text-sky-200 border border-sky-400/30">
+                              {place.provincia || detectedGeo.primaryProvince?.code}
+                            </span>
+                          )}
                         </div>
                         <h2 className="text-xl font-bold leading-tight drop-shadow-sm">
                           {placeName}

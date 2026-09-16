@@ -12,10 +12,18 @@ import { SearchFilterOverlay } from "./components/SearchFilterOverlay";
 import { FloatingPlaceCard } from "./components/FloatingPlaceCard";
 import { PlaceDetailModal } from "./components/PlaceDetailModal";
 import { AiExtractorModal } from "./components/AiExtractorModal";
+import { AuthModal } from "./components/AuthModal";
+import { SettingsModal } from "./components/SettingsModal";
+import { FeedbackModal } from "./components/FeedbackModal";
 import { SpecialFilterType } from "./components/ActivityFilterBar";
 import { ACTIVITY_FILTERS } from "./data/categories";
 import { UserAccountButton } from "./components/UserAccountButton";
 import { useUserPlaces } from "./lib/useUserPlaces";
+import { 
+  doesPlaceMatchCountryRegionAndProvince, 
+  findProvinceByCode, 
+  findProvinceByName 
+} from "./lib/geoItaly";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -48,8 +56,40 @@ export default function App() {
   // Filters
   const [activeActivity, setActiveActivity] = useState<ActivityFilterKey>("tutti");
   const [specialFilter, setSpecialFilter] = useState<SpecialFilterType>("all");
+  const [activeCountry, setActiveCountry] = useState<string>("tutti");
+  const [activeRegion, setActiveRegion] = useState<string>("tutte");
+  const [activeProvince, setActiveProvince] = useState<string>("tutte");
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSelectCountry = (country: string) => {
+    setActiveCountry(country);
+    if (country !== "tutti") {
+      setActiveRegion("tutte");
+      setActiveProvince("tutte");
+    }
+  };
+
+  const handleSelectRegion = (region: string) => {
+    setActiveRegion(region);
+    // If current active province is not in the newly selected region, reset it
+    if (region !== "tutte" && activeProvince !== "tutte") {
+      const prov = findProvinceByCode(activeProvince) || findProvinceByName(activeProvince);
+      if (prov && prov.region.toLowerCase() !== region.toLowerCase()) {
+        setActiveProvince("tutte");
+      }
+    }
+  };
+
+  const handleSelectProvince = (provinceCode: string) => {
+    setActiveProvince(provinceCode);
+    if (provinceCode !== "tutte") {
+      const prov = findProvinceByCode(provinceCode) || findProvinceByName(provinceCode);
+      if (prov && activeRegion !== "tutte" && activeRegion.toLowerCase() !== prov.region.toLowerCase()) {
+        setActiveRegion(prov.region);
+      }
+    }
+  };
 
   // Place selection: Level 1 (compact preview card) & Level 2 (expanded modal)
   const [mapSelectedPlace, setMapSelectedPlace] = useState<SavedPlace | null>(null);
@@ -122,7 +162,12 @@ export default function App() {
         return false;
       }
 
-      // 4. Search query
+      // 4. Country, Region and Province Filter
+      if (!doesPlaceMatchCountryRegionAndProvince(place, activeCountry, activeRegion, activeProvince)) {
+        return false;
+      }
+
+      // 5. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = placeName.includes(q);
@@ -130,12 +175,13 @@ export default function App() {
         const matchCat = placeCat.includes(q);
         const matchSummary = (place.riassunto_ai_minimal || "").toLowerCase().includes(q);
         const matchTags = place.tag?.some((t) => t.toLowerCase().includes(q));
-        return matchName || matchLoc || matchCat || matchSummary || matchTags;
+        const matchCountry = (place.paese || "").toLowerCase().includes(q);
+        return matchName || matchLoc || matchCat || matchSummary || matchTags || matchCountry;
       }
 
       return true;
     });
-  }, [places, activeActivity, specialFilter, activeListId, searchQuery, experienceRecommendedPlaces]);
+  }, [places, activeActivity, specialFilter, activeCountry, activeRegion, activeProvince, activeListId, searchQuery, experienceRecommendedPlaces]);
 
   // Actions wired to Cloud Firestore
   const handleUpdatePlace = async (updated: SavedPlace) => {
@@ -193,7 +239,7 @@ export default function App() {
       />
 
       {/* 2. EXTENDED FLOATING SEARCH BAR & USER ACCOUNT (Top Pill) */}
-      <div className="absolute top-4 left-3 right-3 sm:left-4 sm:right-4 max-w-2xl mx-auto z-20 pointer-events-auto flex items-center gap-2">
+      <div className="absolute top-4 left-3 right-3 sm:left-4 sm:right-4 max-w-3xl mx-auto z-20 pointer-events-auto flex items-center gap-2">
         <div className="flex-1 flex items-center gap-2 p-1.5 bg-white/95 backdrop-blur-2xl border border-slate-200/90 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
           <div className="relative flex-1 flex items-center">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
@@ -222,7 +268,7 @@ export default function App() {
             type="button"
             onClick={() => setIsSearchFilterOpen(!isSearchFilterOpen)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-              activeActivity !== "tutti" || specialFilter !== "all"
+              activeActivity !== "tutti" || specialFilter !== "all" || activeCountry !== "tutti" || activeRegion !== "tutte" || activeProvince !== "tutte"
                 ? "bg-slate-900 text-white"
                 : "bg-slate-100 hover:bg-slate-200 text-slate-700"
             }`}
@@ -240,12 +286,19 @@ export default function App() {
       <SearchFilterOverlay
         isOpen={isSearchFilterOpen}
         onClose={() => setIsSearchFilterOpen(false)}
+        allPlaces={places}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeActivity={activeActivity}
         onSelectActivity={setActiveActivity}
         specialFilter={specialFilter}
         onSelectSpecialFilter={setSpecialFilter}
+        activeCountry={activeCountry}
+        onSelectCountry={handleSelectCountry}
+        activeRegion={activeRegion}
+        onSelectRegion={handleSelectRegion}
+        activeProvince={activeProvince}
+        onSelectProvince={handleSelectProvince}
         totalFiltered={filteredPlaces.length}
       />
 
@@ -292,6 +345,12 @@ export default function App() {
         onSelectActivity={setActiveActivity}
         specialFilter={specialFilter}
         onSelectSpecialFilter={setSpecialFilter}
+        activeCountry={activeCountry}
+        onSelectCountry={handleSelectCountry}
+        activeRegion={activeRegion}
+        onSelectRegion={handleSelectRegion}
+        activeProvince={activeProvince}
+        onSelectProvince={handleSelectProvince}
       />
 
       {/* 6. DOCK DI NAVIGAZIONE IN BASSO (3 SEZIONI: 🗺️ Mappa, (+) Centrale, 🔖 I Miei Luoghi) */}
@@ -323,13 +382,18 @@ export default function App() {
         onDeletePlace={handleDeletePlaceWithCleanup}
       />
 
-      {/* 8. MOTORE DI ESTRAZIONE AI (+) DA REEL / TIKTOK / TESTO */}
+      {/* 8. MODALE INSERIMENTO SPOT */}
       <AiExtractorModal
         isOpen={isExtractorOpen}
         lists={lists}
         onClose={() => setIsExtractorOpen(false)}
         onSavePlace={handleSavePlace}
       />
+
+      {/* 9. MODALI ACCOUNT, IMPOSTAZIONI & FEEDBACK */}
+      <AuthModal />
+      <SettingsModal places={places} />
+      <FeedbackModal />
     </div>
   );
 }

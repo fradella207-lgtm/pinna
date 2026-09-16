@@ -3,6 +3,10 @@ import {
   User, 
   onAuthStateChanged, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  updateProfile,
   signOut as firebaseSignOut 
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -12,19 +16,48 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string, displayName: string) => Promise<void>;
+  signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
+  isAuthModalOpen: boolean;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
+  isSettingsOpen: boolean;
+  openSettings: () => void;
+  closeSettings: () => void;
+  isFeedbackOpen: boolean;
+  openFeedback: () => void;
+  closeFeedback: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signInWithGoogle: async () => {},
+  signInWithEmail: async () => {},
+  signUpWithEmail: async () => {},
+  signInAsGuest: async () => {},
   signOut: async () => {},
+  isAuthModalOpen: false,
+  openAuthModal: () => {},
+  closeAuthModal: () => {},
+  isSettingsOpen: false,
+  openSettings: () => {},
+  closeSettings: () => {},
+  isFeedbackOpen: false,
+  openFeedback: () => {},
+  closeFeedback: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Global modals control
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   useEffect(() => {
     testFirestoreConnection().catch(console.error);
@@ -42,8 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             {
               userId: currentUser.uid,
               email: currentUser.email || "",
-              displayName: currentUser.displayName || "",
+              displayName: currentUser.displayName || (currentUser.isAnonymous ? "Ospite" : "Utente pinna"),
               photoURL: currentUser.photoURL || "",
+              isAnonymous: currentUser.isAnonymous,
               updatedAt: serverTimestamp(),
             },
             { merge: true }
@@ -61,8 +95,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
+      setIsAuthModalOpen(false);
     } catch (error) {
       console.error("Google sign in error:", error);
+      throw error;
+    }
+  };
+
+  const signInWithEmail = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      setIsAuthModalOpen(false);
+    } catch (error) {
+      console.error("Email sign in error:", error);
+      throw error;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, pass: string, displayName: string) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      if (displayName.trim() && cred.user) {
+        await updateProfile(cred.user, { displayName: displayName.trim() });
+      }
+      setIsAuthModalOpen(false);
+    } catch (error) {
+      console.error("Email sign up error:", error);
+      throw error;
+    }
+  };
+
+  const signInAsGuest = async () => {
+    try {
+      await signInAnonymously(auth);
+      setIsAuthModalOpen(false);
+    } catch (error) {
+      console.error("Anonymous sign in error:", error);
       throw error;
     }
   };
@@ -77,7 +145,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
+        signInAsGuest,
+        signOut,
+        isAuthModalOpen,
+        openAuthModal: () => setIsAuthModalOpen(true),
+        closeAuthModal: () => setIsAuthModalOpen(false),
+        isSettingsOpen,
+        openSettings: () => setIsSettingsOpen(true),
+        closeSettings: () => setIsSettingsOpen(false),
+        isFeedbackOpen,
+        openFeedback: () => setIsFeedbackOpen(true),
+        closeFeedback: () => setIsFeedbackOpen(false),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

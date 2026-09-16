@@ -57,9 +57,6 @@ export const MapView: React.FC<MapViewProps> = ({
     const tileGroup = L.layerGroup().addTo(map);
     tileLayerGroupRef.current = tileGroup;
 
-    // Zoom control at bottom right (above possible bottom cards on mobile)
-    L.control.zoom({ position: "bottomright" }).addTo(map);
-
     mapInstanceRef.current = map;
 
     // Set initial Satellite layer

@@ -58,5 +58,13 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
     }
+
+    // Feedback & Improvement submissions: /feedback/{feedbackId}
+    match /feedback/{feedbackId} {
+      allow create: if request.resource.data.message is string && 
+                       request.resource.data.message.size() > 0 &&
+                       request.resource.data.message.size() <= 2000;
+      allow read, update, delete: if false;
+    }
   }
 }

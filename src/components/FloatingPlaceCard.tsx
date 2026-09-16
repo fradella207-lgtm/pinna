@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { SavedPlace } from "../types";
 import { getActivityIcon, getActivityColor } from "../data/categories";
+import { getCountryFlag } from "../lib/geoItaly";
 
 interface FloatingPlaceCardProps {
   place: SavedPlace;
@@ -145,7 +146,10 @@ export const FloatingPlaceCard: React.FC<FloatingPlaceCardProps> = ({
               {place.categoria}
             </span>
             <span>•</span>
-            <span className="truncate">{place.citta_o_zona}</span>
+            <span className="truncate flex items-center gap-1">
+              {place.paese && <span>{getCountryFlag(place.paese)}</span>}
+              <span>{place.citta_o_zona}</span>
+            </span>
           </div>
 
           <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-snug truncate group-hover:text-blue-600 transition-colors">

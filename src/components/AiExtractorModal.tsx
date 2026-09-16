@@ -17,12 +17,19 @@ import {
   Check, 
   Sparkles, 
   Compass,
-  Tag
+  Tag,
+  Globe
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, CustomList, VideoAttachment } from "../types";
 import { TAXONOMIA_360, getActivityIcon, getActivityColor } from "../data/categories";
 import { compressImageFile } from "../lib/imageCompressor";
+import { 
+  detectPlaceRegionsAndProvinces, 
+  getCountryFlag, 
+  normalizeCountryName,
+  KNOWN_COUNTRIES 
+} from "../lib/geoItaly";
 
 interface AiExtractorModalProps {
   isOpen: boolean;
@@ -37,6 +44,7 @@ interface LocationSuggestion {
   lng: number;
   displayName: string;
   city: string;
+  country?: string;
 }
 
 export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
@@ -47,6 +55,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   // --- FORM STATE ---
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState<string>("Italia");
   
   // Category default: "Seleziona" as requested
   const [category, setCategory] = useState("Seleziona");
@@ -92,6 +101,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
     if (isOpen) {
       setName("");
       setCity("");
+      setSelectedCountry("Italia");
       setCategory("Seleziona");
       setContextTag("");
       setEntityType("PUNTO");
@@ -192,18 +202,20 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         const suggestions: LocationSuggestion[] = data.map((item: any) => {
+          const locCountry = item.address?.country || "Italia";
           const locCity = item.address?.city || 
                           item.address?.town || 
                           item.address?.village || 
                           item.address?.county || 
                           item.address?.state || 
-                          "Italia";
+                          locCountry;
           return {
             name: item.name || query,
             lat: parseFloat(item.lat),
             lng: parseFloat(item.lon),
             displayName: item.display_name,
             city: locCity,
+            country: locCountry,
           };
         });
         setLocationSuggestions(suggestions);
@@ -220,6 +232,9 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       setName(sug.name);
     }
     setCity(sug.city);
+    if (sug.country) {
+      setSelectedCountry(normalizeCountryName(sug.country));
+    }
     setCoords({ lat: sug.lat, lng: sug.lng });
     setLocationSuggestions([]);
     setSearchLocationQuery("");
@@ -332,6 +347,15 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       const quickBadges = [category];
       if (effectiveTag) quickBadges.push(effectiveTag);
 
+      // Detect Region, Province & Country from location text
+      const detectedGeo = detectPlaceRegionsAndProvinces({
+        paese: selectedCountry,
+        citta_o_zona: cleanCity,
+        nome: cleanName,
+        query_google_maps: `${cleanName} ${cleanCity}`,
+        coordinate: finalCoords,
+      });
+
       const place: SavedPlace = {
         id: generatedId,
         nome: cleanName,
@@ -349,7 +373,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
           momento_ideale: moment,
           meteo_ideale: "Sereno",
         },
+        paese: detectedGeo.primaryCountry,
         citta_o_zona: cleanCity,
+        regione: detectedGeo.primaryRegion,
+        provincia: detectedGeo.primaryProvince?.code || detectedGeo.primaryProvince?.name,
         query_google_maps: `${cleanName} ${cleanCity}`,
         coordinate: finalCoords,
         coordinate_percorso: routeCoords,
@@ -535,10 +562,43 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             <input
               type="text"
               value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Es. Cortina d'Ampezzo (BL), Dolomiti, Firenze..."
+              onChange={(e) => {
+                const val = e.target.value;
+                setCity(val);
+                const detected = detectPlaceRegionsAndProvinces({ citta_o_zona: val });
+                if (detected.allCountries && detected.allCountries.length > 0 && detected.primaryCountry !== selectedCountry) {
+                  setSelectedCountry(detected.primaryCountry);
+                }
+              }}
+              placeholder="Es. Cortina d'Ampezzo (BL), Passo del Furka (Svizzera), Chamonix..."
               className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 font-medium text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
             />
+
+            {/* Country Selector Quick Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 pb-0.5">
+              <span className="text-[10px] font-bold text-slate-400 shrink-0 uppercase tracking-wider flex items-center gap-1 mr-1">
+                <Globe className="w-3 h-3 text-sky-500" />
+                <span>Stato:</span>
+              </span>
+              {["Italia", "Svizzera", "Francia", "Austria", "Germania", "Slovenia", "Spagna", "Norvegia"].map((countryName) => {
+                const isSel = selectedCountry.toLowerCase() === countryName.toLowerCase();
+                return (
+                  <button
+                    key={countryName}
+                    type="button"
+                    onClick={() => setSelectedCountry(countryName)}
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold shrink-0 transition-all flex items-center gap-1 ${
+                      isSel
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    <span>{getCountryFlag(countryName)}</span>
+                    <span>{countryName}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* 3. Categoria (Default: "Seleziona") & Tipo Luogo */}
