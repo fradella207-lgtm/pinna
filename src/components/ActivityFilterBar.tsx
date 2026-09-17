@@ -62,7 +62,15 @@ export const ActivityFilterBar: React.FC<ActivityFilterBarProps> = ({
     return places.filter((p) => {
       const cat = (p.categoria || "").toLowerCase();
       const target = filterDef.categoryName.toLowerCase();
-      return cat.includes(target) || (filterKey === "giro_auto" && cat.includes("pass"));
+      return (
+        cat.includes(target) ||
+        (filterKey === "guida_panorami" && (cat.includes("pass") || cat.includes("auto") || cat.includes("guida") || cat.includes("strad"))) ||
+        (filterKey === "cultura_storia" && (cat.includes("cultur") || cat.includes("stori") || cat.includes("borgh") || cat.includes("muse") || cat.includes("monument"))) ||
+        (filterKey === "natura_relax" && (cat.includes("natur") || cat.includes("relax") || cat.includes("lago") || cat.includes("panoram") || cat.includes("belveder"))) ||
+        (filterKey === "sport_natura" && (cat.includes("sport") || cat.includes("trek") || cat.includes("sentier") || cat.includes("sci"))) ||
+        (filterKey === "cibo_sapori" && (cat.includes("cibo") || cat.includes("sapor") || cat.includes("ristoran") || cat.includes("food") || cat.includes("trattor"))) ||
+        (filterKey === "svago_citta" && (cat.includes("svago") || cat.includes("citt") || cat.includes("piazz") || cat.includes("rooftop")))
+      );
     }).length;
   };
 

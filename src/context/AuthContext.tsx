@@ -20,6 +20,9 @@ interface AuthContextType {
   signUpWithEmail: (email: string, pass: string, displayName: string) => Promise<void>;
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
+  isWelcomeModalOpen: boolean;
+  openWelcomeModal: () => void;
+  closeWelcomeModal: () => void;
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
@@ -39,6 +42,9 @@ const AuthContext = createContext<AuthContextType>({
   signUpWithEmail: async () => {},
   signInAsGuest: async () => {},
   signOut: async () => {},
+  isWelcomeModalOpen: false,
+  openWelcomeModal: () => {},
+  closeWelcomeModal: () => {},
   isAuthModalOpen: false,
   openAuthModal: () => {},
   closeAuthModal: () => {},
@@ -55,6 +61,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   // Global modals control
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState<boolean>(() => {
+    try {
+      const seen = localStorage.getItem("pinna_seen_welcome_v1");
+      return !seen;
+    } catch {
+      return false;
+    }
+  });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -144,6 +158,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const closeWelcomeModal = () => {
+    try {
+      localStorage.setItem("pinna_seen_welcome_v1", "true");
+    } catch {
+      // ignore
+    }
+    setIsWelcomeModalOpen(false);
+  };
+
+  const openWelcomeModal = () => {
+    setIsWelcomeModalOpen(true);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -154,6 +181,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUpWithEmail,
         signInAsGuest,
         signOut,
+        isWelcomeModalOpen,
+        openWelcomeModal,
+        closeWelcomeModal,
         isAuthModalOpen,
         openAuthModal: () => setIsAuthModalOpen(true),
         closeAuthModal: () => setIsAuthModalOpen(false),

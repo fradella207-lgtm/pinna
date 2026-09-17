@@ -3,7 +3,7 @@ import { LogIn, Settings, User as UserIcon, Cloud } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export const UserAccountButton: React.FC = () => {
-  const { user, loading, openAuthModal, openSettings } = useAuth();
+  const { user, loading, openWelcomeModal, openSettings } = useAuth();
 
   if (loading) {
     return (
@@ -16,7 +16,7 @@ export const UserAccountButton: React.FC = () => {
       <div className="flex items-center gap-1.5">
         <button
           type="button"
-          onClick={openAuthModal}
+          onClick={openWelcomeModal}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-xs hover:shadow-md text-xs font-bold transition-all active:scale-95"
           title="Accedi o registrati per salvare i tuoi spot su Cloud"
         >

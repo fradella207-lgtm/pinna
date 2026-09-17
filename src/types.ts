@@ -9,12 +9,12 @@ export type GenreSubcategory =
   | "relax_panorami";
 
 export type MainCategory =
-  | "Culture & History"
-  | "Outdoor & Natura"
-  | "Drive & Ride"
-  | "Active & Sport"
-  | "Food & Drink"
-  | "Leisure & Social";
+  | "Cultura & Storia"
+  | "Natura & Relax"
+  | "Guida & Panorami"
+  | "Sport & Natura"
+  | "Cibo & Sapori"
+  | "Svago & Città";
 
 export type ActivityCategory =
   | MainCategory
@@ -25,22 +25,17 @@ export type ActivityCategory =
   | "Piste Ciclabili"
   | "Ristoranti"
   | "Sci & Inverno"
-  | "Altro";
+  | "Altro"
+  | string;
 
 export type ActivityFilterKey =
   | "tutti"
-  | "culture_history"
-  | "outdoor_natura"
-  | "drive_ride"
-  | "active_sport"
-  | "food_drink"
-  | "leisure_social"
-  | "giro_auto"
-  | "trekking"
-  | "domenica_montagna"
-  | "ristoranti"
-  | "sci_inverno"
-  | "passeggiate";
+  | "cultura_storia"
+  | "natura_relax"
+  | "guida_panorami"
+  | "sport_natura"
+  | "cibo_sapori"
+  | "svago_citta";
 
 export type Season =
   | "Primavera"

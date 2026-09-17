@@ -46,11 +46,19 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
 
-    // Center on Italian Alps initially
+    // Center on Italian Alps initially with world bounds clamped
+    const southWest = L.latLng(-85, -180);
+    const northEast = L.latLng(85, 180);
+    const worldBounds = L.latLngBounds(southWest, northEast);
+
     const map = L.map(mapContainerRef.current, {
       center: [46.4, 11.8],
       zoom: 8,
+      minZoom: 2, // Prevent zooming out beyond world extent
+      maxBounds: worldBounds, // Strictly lock movement within earth coordinates
+      maxBoundsViscosity: 0.8, // Smooth bounce preventing empty black dragging
       zoomControl: false,
+      worldCopyJump: false,
     });
 
     // Layer Group for Base Tiles
@@ -88,6 +96,9 @@ export const MapView: React.FC<MapViewProps> = ({
         {
           attribution: "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
           maxZoom: 19,
+          noWrap: false,
+          keepBuffer: 8,
+          updateWhenIdle: false,
         }
       );
       // 2. Clear Road & Place Labels Overlay
@@ -97,6 +108,8 @@ export const MapView: React.FC<MapViewProps> = ({
           attribution: "Labels &copy; Esri",
           maxZoom: 19,
           opacity: 0.85,
+          noWrap: false,
+          keepBuffer: 8,
         }
       );
       group.addLayer(satLayer);
@@ -108,6 +121,8 @@ export const MapView: React.FC<MapViewProps> = ({
         {
           maxZoom: 17,
           attribution: "Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)",
+          noWrap: false,
+          keepBuffer: 6,
         }
       );
       group.addLayer(topoLayer);
@@ -119,6 +134,8 @@ export const MapView: React.FC<MapViewProps> = ({
           attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
           subdomains: "abcd",
           maxZoom: 20,
+          noWrap: false,
+          keepBuffer: 6,
         }
       );
       group.addLayer(streetLayer);
@@ -286,12 +303,16 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   return (
-    <div className={`relative w-full h-full ${isFullScreen ? "inset-0" : "rounded-3xl border border-slate-700/50 shadow-md"} overflow-hidden bg-slate-950`}>
+    <div 
+      className={`relative w-full h-full ${isFullScreen ? "inset-0" : "rounded-3xl border border-slate-700/50 shadow-md"} overflow-hidden`}
+      style={{ backgroundColor: "#0e1e32" }}
+    >
       {/* Leaflet DOM Root */}
       <div 
         id="leaflet-map-canvas"
         ref={mapContainerRef} 
         className="w-full h-full absolute inset-0 z-0" 
+        style={{ backgroundColor: "#0e1e32" }}
       />
     </div>
   );

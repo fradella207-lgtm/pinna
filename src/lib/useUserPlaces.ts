@@ -5,7 +5,8 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
-  writeBatch 
+  writeBatch,
+  getDocs 
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "./firebase";
 import { useAuth } from "../context/AuthContext";
@@ -187,11 +188,38 @@ export function useUserPlaces() {
     }
   };
 
+  // Clear / Reset all user places (per-user or local)
+  const clearAllPlaces = async () => {
+    localStorage.removeItem("spotter_saved_places_v3");
+    localStorage.removeItem("spotter_saved_places_v2");
+    localStorage.removeItem("spotter_lists_v1");
+
+    if (!user) {
+      setPlaces([]);
+      return;
+    }
+
+    const placesPath = `users/${user.uid}/places`;
+    try {
+      const placesColRef = collection(db, "users", user.uid, "places");
+      const snap = await getDocs(placesColRef);
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+      setPlaces([]);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, placesPath);
+    }
+  };
+
   return {
     places,
     loading,
     savePlace,
     toggleVisited,
     removePlace,
+    clearAllPlaces,
   };
 }

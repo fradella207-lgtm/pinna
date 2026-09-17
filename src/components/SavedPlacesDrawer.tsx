@@ -16,7 +16,8 @@ import {
   Check, 
   Compass,
   Building2,
-  Globe
+  Globe,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, ActivityFilterKey } from "../types";
@@ -61,6 +62,7 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
   onOpenDetails,
   onToggleVisited,
   onDeletePlace,
+  onOpenAddPlace,
   searchQuery,
   onSearchChange,
   activeActivity,
@@ -135,19 +137,19 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
       transition={{ duration: 0.22, ease: "easeOut" }}
-      className="fixed inset-0 z-40 bg-slate-50 flex flex-col text-slate-900 overflow-hidden"
+      className="fixed inset-0 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col text-slate-900 dark:text-slate-100 overflow-hidden transition-colors duration-200"
     >
       {/* 1. Header Desktop & Mobile */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
-            <Bookmark className="w-4 h-4 fill-white" />
+          <div className="w-8 h-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center shadow-xs">
+            <Bookmark className="w-4 h-4 fill-current" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               I Miei Luoghi
             </h1>
-            <p className="text-[11px] text-slate-500 font-medium">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               {allPlaces.length} salvati • {visitedPlaces.length} visitati
             </p>
           </div>
@@ -411,11 +413,38 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                 </h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {hasActiveFilter || searchQuery
-                    ? "Prova a modificare o azzerare i filtri di ricerca per visualizzare più luoghi salvati."
+                    ? "Nessun luogo salvato corrisponde ai filtri o alla ricerca corrente."
                     : visitedTab === "to_visit"
                     ? "Non hai ancora luoghi da visitare. Salva nuovi spot dalla mappa o aggiungili con il pulsante (+)!"
                     : "Non hai ancora segnato nessun luogo come visitato. Quando completi una visita, premi 'Segna come visitato'!"}
                 </p>
+
+                {searchQuery.trim().length >= 2 && (
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200/90 text-amber-900 text-left space-y-2 mt-2">
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      La ricerca nella mappa cerca solo tra i tuoi <strong>luoghi salvati</strong>. Vuoi cercare "<strong>{searchQuery}</strong>" nel mondo su Google Maps e aggiungerlo?
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
+                      >
+                        <span>Cerca su Google Maps</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={onOpenAddPlace}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition-colors"
+                      >
+                        + Aggiungi Nuovo Spot
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {hasActiveFilter && (
                   <button
                     type="button"

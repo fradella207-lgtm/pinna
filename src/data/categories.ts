@@ -23,54 +23,54 @@ export interface TaxonomyCategory {
 
 export const TAXONOMIA_360: TaxonomyCategory[] = [
   {
-    nome: "Culture & History",
-    sottotitolo: "Borghi, Musei, Monumenti, Castelli, Siti Archeologici, Chiese",
-    tagContestuali: ["Borghi", "Musei", "Monumenti", "Castelli", "Siti Archeologici", "Chiese"],
+    nome: "Cultura & Storia",
+    sottotitolo: "Monumenti, Musei, Chiese, Castelli, Borghi e Siti Archeologici",
+    tagContestuali: ["Monumenti", "Musei", "Chiese & Basiliche", "Castelli", "Borghi Antichi", "Siti Archeologici"],
     iconName: "Landmark",
     color: "#7c3aed",
     bgLight: "bg-purple-50 text-purple-700 border-purple-200",
     badgeBorder: "border-purple-500",
   },
   {
-    nome: "Outdoor & Natura",
-    sottotitolo: "Laghi, Mare & Spiagge, Cascate, Park & Giardini, Belvedere, Grotte",
-    tagContestuali: ["Laghi", "Mare & Spiagge", "Cascate", "Park & Giardini", "Belvedere", "Grotte"],
+    nome: "Natura & Relax",
+    sottotitolo: "Laghi, Punti Panoramici, Spiagge, Cascate, Parchi e Grotte",
+    tagContestuali: ["Punti Panoramici", "Laghi", "Spiagge & Mare", "Cascate & Fiumi", "Parchi Naturali", "Grotte"],
     iconName: "Trees",
     color: "#059669",
     bgLight: "bg-emerald-50 text-emerald-700 border-emerald-200",
     badgeBorder: "border-emerald-500",
   },
   {
-    nome: "Drive & Ride",
-    sottotitolo: "Passi Montani, Strade Panoramiche, Piste Ciclabili, Off-Road",
-    tagContestuali: ["Passi Montani", "Strade Panoramiche", "Piste Ciclabili", "Off-Road"],
+    nome: "Guida & Panorami",
+    sottotitolo: "Passi Montani, Strade Panoramiche, Piste Ciclabili e Itinerari",
+    tagContestuali: ["Passi Montani", "Strade Panoramiche", "Piste Ciclabili", "Strade Storiche"],
     iconName: "Car",
     color: "#ea580c",
     bgLight: "bg-orange-50 text-orange-700 border-orange-200",
     badgeBorder: "border-orange-500",
   },
   {
-    nome: "Active & Sport",
-    sottotitolo: "Trekking & Sentieri, Arrampicata, Sport Acquatici, Piste da Sci",
-    tagContestuali: ["Trekking & Sentieri", "Arrampicata", "Sport Acquatici", "Piste da Sci"],
+    nome: "Sport & Natura",
+    sottotitolo: "Trekking & Sentieri, Vette, Arrampicata, Piste da Sci e Sport",
+    tagContestuali: ["Trekking & Sentieri", "Vette & Cime", "Rifugi Alpini", "Piste da Sci", "Arrampicata"],
     iconName: "Mountain",
     color: "#16a34a",
     bgLight: "bg-green-50 text-green-700 border-green-200",
     badgeBorder: "border-green-500",
   },
   {
-    nome: "Food & Drink",
-    sottotitolo: "Ristoranti, Agriturismi, Rifugi, Bar & Aperitivi, Street Food",
-    tagContestuali: ["Ristoranti", "Agriturismi", "Rifugi", "Bar & Aperitivi", "Street Food"],
+    nome: "Cibo & Sapori",
+    sottotitolo: "Ristoranti Tipici, Trattorie, Agriturismi, Rifugi e Bar",
+    tagContestuali: ["Ristoranti Tipici", "Trattorie & Osterie", "Agriturismi", "Rifugi & Malghe", "Aperitivi & Bar"],
     iconName: "Utensils",
     color: "#e11d48",
     bgLight: "bg-rose-50 text-rose-700 border-rose-200",
     badgeBorder: "border-rose-500",
   },
   {
-    nome: "Leisure & Social",
-    sottotitolo: "Piazze, Rooftop, Luoghi Insoliti / Secret Spots, Eventi & Mercatini",
-    tagContestuali: ["Piazze", "Rooftop", "Luoghi Insoliti / Secret Spots", "Eventi & Mercatini"],
+    nome: "Svago & Città",
+    sottotitolo: "Piazze Famose, Strade Principali, Negozi, Mercatini e Luoghi Unici",
+    tagContestuali: ["Piazze Principali", "Vie & Corsi Famosi", "Terrazze & Rooftop", "Posti Insoliti", "Eventi & Mercatini"],
     iconName: "Sparkles",
     color: "#2563eb",
     bgLight: "bg-blue-50 text-blue-700 border-blue-200",
@@ -81,133 +81,73 @@ export const TAXONOMIA_360: TaxonomyCategory[] = [
 export const ACTIVITY_FILTERS: ActivityFilterMeta[] = [
   {
     key: "tutti",
-    label: "Tutte le Attività",
+    label: "Tutti i Luoghi",
     categoryName: "Tutti",
-    tagline: "Tutti i punti di interesse e i percorsi salvati",
+    tagline: "Tutti i punti di interesse salvati nel mondo",
     iconName: "Compass",
     color: "#4f46e5",
     bgLight: "bg-indigo-50 text-indigo-700 border-indigo-200",
     badgeBorder: "border-indigo-500",
   },
   {
-    key: "culture_history",
-    label: "Culture & History",
-    categoryName: "Culture & History",
-    tagline: "Borghi, Musei, Monumenti, Castelli, Siti Archeologici, Chiese",
+    key: "cultura_storia",
+    label: "Cultura & Storia",
+    categoryName: "Cultura & Storia",
+    tagline: "Monumenti, Musei, Chiese, Castelli, Borghi e Siti Archeologici",
     iconName: "Landmark",
     color: "#7c3aed",
     bgLight: "bg-purple-50 text-purple-700 border-purple-200",
     badgeBorder: "border-purple-500",
   },
   {
-    key: "outdoor_natura",
-    label: "Outdoor & Natura",
-    categoryName: "Outdoor & Natura",
-    tagline: "Laghi, Mare & Spiagge, Cascate, Park & Giardini, Belvedere",
+    key: "natura_relax",
+    label: "Natura & Relax",
+    categoryName: "Natura & Relax",
+    tagline: "Laghi, Belvedere, Punti Panoramici, Spiagge, Parchi",
     iconName: "Trees",
     color: "#059669",
     bgLight: "bg-emerald-50 text-emerald-700 border-emerald-200",
     badgeBorder: "border-emerald-500",
   },
   {
-    key: "drive_ride",
-    label: "Drive & Ride",
-    categoryName: "Drive & Ride",
-    tagline: "Passi Montani, Strade Panoramiche, Piste Ciclabili, Off-Road",
+    key: "guida_panorami",
+    label: "Guida & Panorami",
+    categoryName: "Guida & Panorami",
+    tagline: "Passi Montani, Strade Panoramiche, Piste Ciclabili",
     iconName: "Car",
     color: "#ea580c",
     bgLight: "bg-orange-50 text-orange-700 border-orange-200",
     badgeBorder: "border-orange-500",
   },
   {
-    key: "active_sport",
-    label: "Active & Sport",
-    categoryName: "Active & Sport",
-    tagline: "Trekking & Sentieri, Arrampicata, Sport Acquatici, Piste da Sci",
+    key: "sport_natura",
+    label: "Sport & Natura",
+    categoryName: "Sport & Natura",
+    tagline: "Trekking & Sentieri, Vette, Sci, Rifugi, Arrampicata",
     iconName: "Mountain",
     color: "#16a34a",
     bgLight: "bg-green-50 text-green-700 border-green-200",
     badgeBorder: "border-green-500",
   },
   {
-    key: "food_drink",
-    label: "Food & Drink",
-    categoryName: "Food & Drink",
-    tagline: "Ristoranti, Agriturismi, Rifugi, Bar & Aperitivi, Street Food",
+    key: "cibo_sapori",
+    label: "Cibo & Sapori",
+    categoryName: "Cibo & Sapori",
+    tagline: "Ristoranti Tipici, Trattorie, Baite, Rifugi, Aperitivi",
     iconName: "Utensils",
     color: "#e11d48",
     bgLight: "bg-rose-50 text-rose-700 border-rose-200",
     badgeBorder: "border-rose-500",
   },
   {
-    key: "leisure_social",
-    label: "Leisure & Social",
-    categoryName: "Leisure & Social",
-    tagline: "Piazze, Rooftop, Luoghi Insoliti, Secret Spots, Eventi",
+    key: "svago_citta",
+    label: "Svago & Città",
+    categoryName: "Svago & Città",
+    tagline: "Piazze Celebri, Vie dello Shopping, Rooftop, Posti Insoliti",
     iconName: "Sparkles",
     color: "#2563eb",
     bgLight: "bg-blue-50 text-blue-700 border-blue-200",
     badgeBorder: "border-blue-500",
-  },
-  {
-    key: "giro_auto",
-    label: "Giro in Auto / Moto",
-    categoryName: "Passi di Montagna",
-    tagline: "Valichi montani, 48 tornanti e curve panoramiche",
-    iconName: "Car",
-    color: "#ea580c",
-    bgLight: "bg-orange-50 text-orange-700 border-orange-200",
-    badgeBorder: "border-orange-500",
-  },
-  {
-    key: "trekking",
-    label: "Trekking & Sentieri",
-    categoryName: "Trekking",
-    tagline: "Escursioni a piedi, vette, anelli e rifugi alpini",
-    iconName: "Mountain",
-    color: "#16a34a",
-    bgLight: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    badgeBorder: "border-emerald-500",
-  },
-  {
-    key: "domenica_montagna",
-    label: "Domenica in Montagna",
-    categoryName: "Domenica in Montagna",
-    tagline: "Baite panoramiche, laghi smeraldo e relax in quota",
-    iconName: "Sun",
-    color: "#059669",
-    bgLight: "bg-teal-50 text-teal-700 border-teal-200",
-    badgeBorder: "border-teal-500",
-  },
-  {
-    key: "ristoranti",
-    label: "Ristoranti & Cibo",
-    categoryName: "Ristoranti",
-    tagline: "Trattorie tipiche, pasta fatta in casa e piatti tradizionali",
-    iconName: "Utensils",
-    color: "#e11d48",
-    bgLight: "bg-rose-50 text-rose-700 border-rose-200",
-    badgeBorder: "border-rose-500",
-  },
-  {
-    key: "sci_inverno",
-    label: "Piste da Sci & Neve",
-    categoryName: "Sci & Inverno",
-    tagline: "Discese leggendarie, rifugi caldi e settimane bianche",
-    iconName: "Snowflake",
-    color: "#0284c7",
-    bgLight: "bg-sky-50 text-sky-700 border-sky-200",
-    badgeBorder: "border-sky-500",
-  },
-  {
-    key: "passeggiate",
-    label: "Passeggiate & Borghi",
-    categoryName: "Passeggiate",
-    tagline: "Borghi storici, belvedere romantici e vicoli incantati",
-    iconName: "Landmark",
-    color: "#7c3aed",
-    bgLight: "bg-purple-50 text-purple-700 border-purple-200",
-    badgeBorder: "border-purple-500",
   },
 ];
 
@@ -221,24 +161,24 @@ export const SEASONS_LIST: { name: Season; iconName: string; colorClass: string 
 
 export function getActivityColor(category?: string): string {
   const cat = (category || "").toLowerCase();
-  if (cat.includes("culture") || cat.includes("history") || cat.includes("borgh") || cat.includes("muse")) return "#7c3aed";
-  if (cat.includes("outdoor") || cat.includes("natura") || cat.includes("lago") || cat.includes("mare")) return "#059669";
-  if (cat.includes("drive") || cat.includes("ride") || cat.includes("pass") || cat.includes("auto") || cat.includes("moto")) return "#ea580c";
-  if (cat.includes("active") || cat.includes("sport") || cat.includes("trek") || cat.includes("sentier") || cat.includes("sci")) return "#16a34a";
-  if (cat.includes("food") || cat.includes("drink") || cat.includes("ristoran") || cat.includes("cibo")) return "#e11d48";
-  if (cat.includes("leisure") || cat.includes("social") || cat.includes("rooftop") || cat.includes("piazza")) return "#2563eb";
+  if (cat.includes("cultura") || cat.includes("storia") || cat.includes("culture") || cat.includes("history") || cat.includes("borgh") || cat.includes("muse") || cat.includes("monument")) return "#7c3aed";
+  if (cat.includes("natura") || cat.includes("relax") || cat.includes("outdoor") || cat.includes("lago") || cat.includes("spiagg") || cat.includes("mare") || cat.includes("cascat")) return "#059669";
+  if (cat.includes("guida") || cat.includes("panoram") || cat.includes("drive") || cat.includes("ride") || cat.includes("pass") || cat.includes("auto") || cat.includes("moto") || cat.includes("strad")) return "#ea580c";
+  if (cat.includes("sport") || cat.includes("active") || cat.includes("trek") || cat.includes("sentier") || cat.includes("sci") || cat.includes("arrampicat")) return "#16a34a";
+  if (cat.includes("cibo") || cat.includes("sapor") || cat.includes("food") || cat.includes("drink") || cat.includes("ristoran") || cat.includes("trattor") || cat.includes("agritur")) return "#e11d48";
+  if (cat.includes("svago") || cat.includes("città") || cat.includes("citta") || cat.includes("leisure") || cat.includes("social") || cat.includes("rooftop") || cat.includes("piazz")) return "#2563eb";
   if (cat.includes("domenica") || cat.includes("montagna")) return "#059669";
   return "#4f46e5";
 }
 
 export function getActivityIcon(category?: string): string {
   const cat = (category || "").toLowerCase();
-  if (cat.includes("culture") || cat.includes("history") || cat.includes("borgh") || cat.includes("muse")) return "🏛️";
-  if (cat.includes("outdoor") || cat.includes("natura") || cat.includes("lago") || cat.includes("mare")) return "🌿";
-  if (cat.includes("drive") || cat.includes("ride") || cat.includes("pass") || cat.includes("auto") || cat.includes("moto")) return "🏎️";
-  if (cat.includes("active") || cat.includes("sport") || cat.includes("trek") || cat.includes("sentier")) return "🥾";
-  if (cat.includes("food") || cat.includes("drink") || cat.includes("ristoran") || cat.includes("cibo")) return "🍝";
-  if (cat.includes("leisure") || cat.includes("social") || cat.includes("rooftop") || cat.includes("piazza")) return "✨";
+  if (cat.includes("cultura") || cat.includes("storia") || cat.includes("culture") || cat.includes("history") || cat.includes("borgh") || cat.includes("muse") || cat.includes("monument")) return "🏛️";
+  if (cat.includes("natura") || cat.includes("relax") || cat.includes("outdoor") || cat.includes("lago") || cat.includes("spiagg") || cat.includes("mare") || cat.includes("cascat")) return "🌿";
+  if (cat.includes("guida") || cat.includes("panoram") || cat.includes("drive") || cat.includes("ride") || cat.includes("pass") || cat.includes("auto") || cat.includes("moto") || cat.includes("strad")) return "🏎️";
+  if (cat.includes("sport") || cat.includes("active") || cat.includes("trek") || cat.includes("sentier")) return "🥾";
+  if (cat.includes("cibo") || cat.includes("sapor") || cat.includes("food") || cat.includes("drink") || cat.includes("ristoran")) return "🍝";
+  if (cat.includes("svago") || cat.includes("città") || cat.includes("citta") || cat.includes("leisure") || cat.includes("social") || cat.includes("rooftop") || cat.includes("piazz")) return "✨";
   if (cat.includes("sci") || cat.includes("inverno") || cat.includes("neve")) return "⛷️";
   if (cat.includes("domenica") || cat.includes("montagna")) return "🏔️";
   return "📍";

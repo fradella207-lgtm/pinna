@@ -18,7 +18,8 @@ import {
   Sparkles, 
   Compass,
   Tag,
-  Globe
+  Globe,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, CustomList, VideoAttachment } from "../types";
@@ -30,10 +31,17 @@ import {
   normalizeCountryName,
   KNOWN_COUNTRIES 
 } from "../lib/geoItaly";
+import { 
+  searchLocationsOnline, 
+  parseGoogleMapsLinkOrCoords, 
+  guessCategoryFromName,
+  GeoSearchResult 
+} from "../lib/locationSearch";
 
 interface AiExtractorModalProps {
   isOpen: boolean;
   lists?: CustomList[];
+  initialSearchQuery?: string;
   onClose: () => void;
   onSavePlace: (place: SavedPlace) => void;
 }
@@ -49,6 +57,7 @@ interface LocationSuggestion {
 
 export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   isOpen,
+  initialSearchQuery,
   onClose,
   onSavePlace,
 }) => {
@@ -64,6 +73,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   
   // Background coordinates (no raw lat/lng exposed to the user)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [coordsSourceName, setCoordsSourceName] = useState<string | null>(null);
   
   // Notes & details
   const [notes, setNotes] = useState("");
@@ -71,11 +81,11 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   const [moment, setMoment] = useState("Mattina");
   const [visited, setVisited] = useState(false);
 
-  // Address search suggestions for quick auto-complete
+  // Address & Google Maps search suggestions
   const [searchLocationQuery, setSearchLocationQuery] = useState("");
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
-  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
-  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<GeoSearchResult[]>([]);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
 
   // Media (Photos & Video)
@@ -96,23 +106,25 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset form when modal opens
+  // Reset form or trigger initial query when modal opens
   useEffect(() => {
     if (isOpen) {
-      setName("");
+      const initQ = initialSearchQuery?.trim() || "";
+      setName(initQ);
       setCity("");
       setSelectedCountry("Italia");
       setCategory("Seleziona");
       setContextTag("");
       setEntityType("PUNTO");
       setCoords(null);
+      setCoordsSourceName(null);
       setNotes("");
       setDuration("90");
       setMoment("Mattina");
       setVisited(false);
-      setSearchLocationQuery("");
+      setSearchLocationQuery(initQ);
       setLocationSuggestions([]);
-      setShowLocationSearch(false);
+      setHasSearched(false);
       setIsLocatingUser(false);
       setAttachedPhotos([]);
       setCoverPhotoIndex(0);
@@ -123,8 +135,12 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       setShowVideoField(false);
       setError(null);
       setIsSaving(false);
+
+      if (initQ) {
+        handleSearchLocation(initQ);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialSearchQuery]);
 
   if (!isOpen) return null;
 
@@ -184,61 +200,63 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
     });
   };
 
-  // --- LOCATION SEARCH (NOMINATIM AUTOCOMPLETE) ---
+  // --- INTELLIGENT LOCATION SEARCH (GOOGLE MAPS LINKS, PHOTON & NOMINATIM) ---
   const handleSearchLocation = async (query: string) => {
     setSearchLocationQuery(query);
-    if (!query || query.trim().length < 3) {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
       setLocationSuggestions([]);
+      setHasSearched(false);
       return;
     }
+
     setIsSearchingLocation(true);
+    setHasSearched(true);
     try {
-      const endpoint = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        query
-      )}&limit=5&addressdetails=1`;
-      const res = await fetch(endpoint, {
-        headers: { "Accept-Language": "it,en", "User-Agent": "PinnaApp/2.0" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const suggestions: LocationSuggestion[] = data.map((item: any) => {
-          const locCountry = item.address?.country || "Italia";
-          const locCity = item.address?.city || 
-                          item.address?.town || 
-                          item.address?.village || 
-                          item.address?.county || 
-                          item.address?.state || 
-                          locCountry;
-          return {
-            name: item.name || query,
-            lat: parseFloat(item.lat),
-            lng: parseFloat(item.lon),
-            displayName: item.display_name,
-            city: locCity,
-            country: locCountry,
-          };
-        });
-        setLocationSuggestions(suggestions);
+      // Check if user directly pasted a Google Maps link or raw coordinates
+      const parsed = parseGoogleMapsLinkOrCoords(trimmed);
+      if (parsed.lat !== undefined && parsed.lng !== undefined) {
+        setCoords({ lat: parsed.lat, lng: parsed.lng });
+        setCoordsSourceName(`Google Maps / GPS (${parsed.lat.toFixed(4)}, ${parsed.lng.toFixed(4)})`);
+        if (parsed.extractedQuery && !name.trim()) {
+          setName(parsed.extractedQuery);
+        }
+      }
+
+      const suggestions = await searchLocationsOnline(trimmed);
+      setLocationSuggestions(suggestions);
+
+      // Auto-apply if it was an exact single coordinate match
+      if (suggestions.length === 1 && suggestions[0].source === "coordinates") {
+        handleSelectLocation(suggestions[0]);
       }
     } catch {
-      // Ignore network errors
+      // Silent catch
     } finally {
       setIsSearchingLocation(false);
     }
   };
 
-  const handleSelectLocation = (sug: LocationSuggestion) => {
-    if (!name.trim()) {
+  const handleSelectLocation = (sug: GeoSearchResult) => {
+    if (!name.trim() || name === searchLocationQuery) {
       setName(sug.name);
     }
-    setCity(sug.city);
+    if (sug.city) {
+      setCity(sug.city);
+    }
     if (sug.country) {
       setSelectedCountry(normalizeCountryName(sug.country));
     }
     setCoords({ lat: sug.lat, lng: sug.lng });
+    setCoordsSourceName(sug.displayName);
+
+    // Auto-suggest category if still not selected
+    if ((category === "Seleziona" || !category) && sug.categoryGuess) {
+      setCategory(sug.categoryGuess);
+    }
+
     setLocationSuggestions([]);
-    setSearchLocationQuery("");
-    setShowLocationSearch(false);
+    setSearchLocationQuery(sug.name);
   };
 
   // --- GET CURRENT LOCATION VIA BROWSER GPS ---
@@ -253,19 +271,22 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
         const userLat = pos.coords.latitude;
         const userLng = pos.coords.longitude;
         setCoords({ lat: userLat, lng: userLng });
+        setCoordsSourceName(`Posizione GPS attuale (${userLat.toFixed(4)}, ${userLng.toFixed(4)})`);
 
         // Reverse geocode to get a readable city name
         try {
           const revRes = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLat}&lon=${userLng}&zoom=14&addressdetails=1`,
-            { headers: { "Accept-Language": "it,en", "User-Agent": "PinnaApp/2.0" } }
+            { headers: { "Accept-Language": "it,en" } }
           );
           if (revRes.ok) {
             const data = await revRes.json();
             const foundCity = data.address?.city || data.address?.town || data.address?.village || data.address?.county || "Posizione Attuale";
+            const foundCountry = data.address?.country || "Italia";
             if (!city.trim()) {
               setCity(foundCity);
             }
+            setSelectedCountry(normalizeCountryName(foundCountry));
           }
         } catch {
           if (!city.trim()) setCity("Posizione Rilevata");
@@ -281,34 +302,37 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
     );
   };
 
-  // --- RESOLVE COORDINATES IN BACKGROUND IF NOT SET ---
+  // --- RESOLVE COORDINATES WITH MULTI-PROVIDER FALLBACK IF NOT PRE-SET ---
   const resolveCoordinates = async (placeName: string, placeCity: string): Promise<{ lat: number; lng: number }> => {
     if (coords) return coords;
 
+    // 1. Try combined place name + city
     const query = `${placeName} ${placeCity}`.trim();
     if (query.length >= 2) {
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
-          { headers: { "Accept-Language": "it,en", "User-Agent": "PinnaApp/2.0" } }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const lat = parseFloat(data[0].lat);
-            const lng = parseFloat(data[0].lon);
-            if (!isNaN(lat) && !isNaN(lng)) {
-              return { lat, lng };
-            }
-          }
+        const results = await searchLocationsOnline(query);
+        if (results.length > 0 && results[0].lat && results[0].lng) {
+          return { lat: results[0].lat, lng: results[0].lng };
         }
       } catch {
-        // Fallback
+        // Continue
       }
     }
 
-    // Default Italy coordinates
-    return { lat: 45.4642, lng: 9.1900 };
+    // 2. Try place name alone
+    if (placeName.trim().length >= 2) {
+      try {
+        const results = await searchLocationsOnline(placeName.trim());
+        if (results.length > 0 && results[0].lat && results[0].lng) {
+          return { lat: results[0].lat, lng: results[0].lng };
+        }
+      } catch {
+        // Continue
+      }
+    }
+
+    // Default Alps / Italy coordinates if completely unresolvable
+    return { lat: 46.5287, lng: 10.4533 };
   };
 
   // --- SUBMIT SPOT ---
@@ -475,7 +499,140 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             </div>
           )}
 
-          {/* 1. Nome Spot */}
+          {/* 1. RICERCA RAPIDA INTELLIGENTE & GOOGLE MAPS */}
+          <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                <Search className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Cerca Luogo o Incolla Link Google Maps</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={handleDetectCurrentLocation}
+                disabled={isLocatingUser}
+                className="text-[11px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                title="Rileva dove ti trovi adesso con il GPS"
+              >
+                {isLocatingUser ? <Loader2 className="w-3 h-3 animate-spin text-emerald-600" /> : <Compass className="w-3 h-3 text-emerald-600" />}
+                <span>GPS Attuale</span>
+              </button>
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={searchLocationQuery}
+                onChange={(e) => handleSearchLocation(e.target.value)}
+                placeholder="Es. 'Passo Giau', 'Chamonix', 'Braies' o link Google Maps..."
+                className="w-full pl-9 pr-9 py-2 rounded-xl bg-white border border-indigo-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 shadow-xs"
+              />
+              <Search className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
+              {isSearchingLocation && (
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-600 absolute right-3 top-2.5" />
+              )}
+              {searchLocationQuery && !isSearchingLocation && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchLocationQuery("");
+                    setLocationSuggestions([]);
+                    setHasSearched(false);
+                  }}
+                  className="absolute right-2.5 top-2 p-0.5 text-slate-400 hover:text-slate-600 text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Suggestions Dropdown */}
+            {locationSuggestions.length > 0 && (
+              <div className="rounded-xl border border-indigo-200 divide-y divide-indigo-50 bg-white overflow-hidden max-h-48 overflow-y-auto shadow-lg">
+                {locationSuggestions.map((sug, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleSelectLocation(sug)}
+                    className="w-full text-left p-2.5 hover:bg-indigo-50/80 flex items-start gap-2.5 text-xs transition-colors group"
+                  >
+                    <span className="text-base shrink-0 leading-none mt-0.5">
+                      {sug.countryFlag || "📍"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                          {sug.name}
+                        </p>
+                        {sug.categoryGuess && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 shrink-0 font-medium">
+                            {sug.categoryGuess}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                        {sug.city ? `${sug.city}, ` : ""}{sug.country}
+                        {sug.lat && sug.lng ? ` • (${sug.lat.toFixed(3)}, ${sug.lng.toFixed(3)})` : ""}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Fallback Google Maps Prompt when no results found */}
+            {hasSearched && !isSearchingLocation && locationSuggestions.length === 0 && searchLocationQuery.trim().length >= 2 && !coords && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 text-amber-900 space-y-2 shadow-xs">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                    📍
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-slate-900">
+                      Nessun risultato diretto trovato per "{searchLocationQuery}"
+                    </p>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      Puoi cercarlo direttamente su <strong>Google Maps</strong>, copiare il link o condividere l'indirizzo per incollarlo qui sopra (riconosce link brevi <code className="bg-amber-100/70 px-1 rounded">maps.app.goo.gl</code> e coordinate GPS).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchLocationQuery)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors"
+                  >
+                    <span>Cerca "{searchLocationQuery}" su Google Maps</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Coordinates Status Confirmation Badge */}
+            {coords && (
+              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="font-semibold truncate">
+                    {coordsSourceName || `GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`}
+                  </span>
+                </div>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 hover:text-emerald-900 font-bold shrink-0 underline ml-2"
+                >
+                  Verifica su Maps ↗
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Nome Spot */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
               <span>Nome dello Spot o Luogo *</span>
@@ -487,78 +644,14 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
               onChange={(e) => setName(e.target.value)}
               placeholder="Es. Passo Giau, Rifugio Lagazuoi, Borgo di Civita..."
               className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
-              autoFocus
             />
           </div>
 
-          {/* 2. Città o Zona con pulsante Posizione o Ricerca */}
+          {/* 3. Città o Zona & Paese */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-800">
-                Città o Zona
-              </label>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLocationSearch(!showLocationSearch)}
-                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
-                >
-                  <Search className="w-3 h-3" />
-                  <span>{showLocationSearch ? "Chiudi Cerca" : "Cerca Luogo"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDetectCurrentLocation}
-                  disabled={isLocatingUser}
-                  className="text-[11px] text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-1 disabled:opacity-50"
-                  title="Rileva dove ti trovi adesso"
-                >
-                  {isLocatingUser ? <Loader2 className="w-3 h-3 animate-spin" /> : <Compass className="w-3 h-3" />}
-                  <span>Posizione Attuale</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Optional quick search dropdown to auto-fill */}
-            {showLocationSearch && (
-              <div className="p-2.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchLocationQuery}
-                    onChange={(e) => handleSearchLocation(e.target.value)}
-                    placeholder="Cerca su mappa: es. 'Cortina', 'Lago di Braies'..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                  />
-                  <Search className="w-3.5 h-3.5 text-indigo-500 absolute left-2.5 top-2" />
-                  {isSearchingLocation && (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500 absolute right-2.5 top-2" />
-                  )}
-                </div>
-
-                {locationSuggestions.length > 0 && (
-                  <div className="rounded-xl border border-indigo-100 divide-y divide-indigo-50 bg-white overflow-hidden max-h-36 overflow-y-auto shadow-xs">
-                    {locationSuggestions.map((sug, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleSelectLocation(sug)}
-                        className="w-full text-left p-2 hover:bg-indigo-50/70 flex items-start gap-2 text-xs transition-colors"
-                      >
-                        <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-900 truncate">{sug.name}</p>
-                          <p className="text-[10px] text-slate-500 truncate">{sug.displayName}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
+            <label className="text-xs font-bold text-slate-800">
+              Città o Zona
+            </label>
             <input
               type="text"
               value={city}
@@ -962,11 +1055,22 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 };
 
 function getDefaultCover(cat: string): string {
-  if (cat.includes("Culture")) return "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800&auto=format&fit=crop&q=80";
-  if (cat.includes("Drive")) return "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80";
-  if (cat.includes("Active")) return "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&auto=format&fit=crop&q=80";
-  if (cat.includes("Food")) return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80";
-  if (cat.includes("Leisure")) return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80";
+  const c = (cat || "").toLowerCase();
+  if (c.includes("cultur") || c.includes("stori") || c.includes("borgh") || c.includes("muse") || c.includes("monument")) {
+    return "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800&auto=format&fit=crop&q=80";
+  }
+  if (c.includes("guida") || c.includes("panoram") || c.includes("pass") || c.includes("auto") || c.includes("strad")) {
+    return "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&auto=format&fit=crop&q=80";
+  }
+  if (c.includes("sport") || c.includes("trek") || c.includes("sentier") || c.includes("sci") || c.includes("arrampicat")) {
+    return "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&auto=format&fit=crop&q=80";
+  }
+  if (c.includes("cibo") || c.includes("sapor") || c.includes("ristoran") || c.includes("trattor") || c.includes("food")) {
+    return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80";
+  }
+  if (c.includes("svago") || c.includes("citt") || c.includes("piazz") || c.includes("leisure") || c.includes("social")) {
+    return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80";
+  }
   return "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80";
 }
 

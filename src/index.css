@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Spotter Ultra-Minimalist Map styling: No clutter or bottom attribution banners */
 .leaflet-control-attribution {
   display: none !important;
@@ -18,4 +20,12 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Smooth transition when switching themes */
+html.dark {
+  color-scheme: dark;
+}
+html {
+  color-scheme: light;
 }
