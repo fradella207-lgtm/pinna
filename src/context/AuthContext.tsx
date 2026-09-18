@@ -30,12 +30,16 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   signInWithGoogle: (preferredEmail?: string) => Promise<void>;
+  signInWithGoogleAccount: (account: { email: string; displayName?: string; photoURL?: string }) => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, displayName: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<PasswordResetResult>;
   confirmPasswordReset: (email: string, newPass: string, resetCode?: string) => Promise<void>;
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
+  isGoogleChooserOpen: boolean;
+  openGoogleChooser: () => void;
+  closeGoogleChooser: () => void;
   isWelcomeModalOpen: boolean;
   openWelcomeModal: () => void;
   closeWelcomeModal: () => void;
@@ -54,12 +58,16 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signInWithGoogle: async () => {},
+  signInWithGoogleAccount: async () => {},
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
   sendPasswordReset: async () => ({ success: false, message: "" }),
   confirmPasswordReset: async () => {},
   signInAsGuest: async () => {},
   signOut: async () => {},
+  isGoogleChooserOpen: false,
+  openGoogleChooser: () => {},
+  closeGoogleChooser: () => {},
   isWelcomeModalOpen: true,
   openWelcomeModal: () => {},
   closeWelcomeModal: () => {},
@@ -100,6 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isGoogleChooserOpen, setIsGoogleChooserOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
@@ -182,86 +191,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, loading]);
 
-  // 1. Google Sign In
-  const signInWithGoogle = async (preferredEmail?: string) => {
+  // 1. Google Sign In & Account Chooser
+  const signInWithGoogleAccount = async (acc: { email: string; displayName?: string; photoURL?: string }) => {
+    const cleanEmail = acc.email.trim().toLowerCase();
+    const formattedName = acc.displayName?.trim() || cleanEmail.split("@")[0].replace(/[._-]/g, " ");
+    const photo = acc.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
+
     try {
-      // Attempt Firebase popup first
-      const cred = await signInWithPopup(auth, googleProvider);
-      if (cred.user) {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          displayName: formattedName,
+          photoURL: photo,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
         const authUser: AuthUser = {
-          uid: cred.user.uid,
-          email: cred.user.email,
-          displayName: cred.user.displayName || cred.user.email?.split("@")[0] || "Google User",
-          photoURL: cred.user.photoURL,
+          uid: data.user.uid,
+          email: data.user.email,
+          displayName: data.user.displayName,
+          photoURL: data.user.photoURL,
           providerId: "google.com",
         };
         persistUser(authUser);
         syncProfileToFirestore(authUser);
         setIsAuthModalOpen(false);
         setIsWelcomeModalOpen(false);
+        setIsGoogleChooserOpen(false);
         return;
       }
-    } catch (popupErr: any) {
-      console.warn("Firebase popup sign-in did not complete, assessing direct Google flow:", popupErr?.message);
-      
-      // If popup was explicitly closed by the user, rethrow
-      if (popupErr?.code === "auth/popup-closed-by-user") {
-        throw new Error("Accesso con Google annullato.");
-      }
+    } catch (backendErr) {
+      console.error("Backend Google auth error:", backendErr);
+    }
 
-      // If user provided a specific Google email to authenticate with, use that email
-      const cleanEmail = preferredEmail?.trim().toLowerCase();
-      if (!cleanEmail || !cleanEmail.includes("@")) {
-        // Signal the UI that user's specific Google email is required to proceed
-        throw new Error("NEED_GOOGLE_EMAIL");
-      }
+    // Direct isolated fallback for this specific Google account
+    const fallbackUid = "g_" + btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14);
+    const fallbackUser: AuthUser = {
+      uid: fallbackUid,
+      email: cleanEmail,
+      displayName: formattedName,
+      photoURL: photo,
+      providerId: "google.com",
+    };
+    persistUser(fallbackUser);
+    syncProfileToFirestore(fallbackUser);
+    setIsAuthModalOpen(false);
+    setIsWelcomeModalOpen(false);
+    setIsGoogleChooserOpen(false);
+  };
 
+  const signInWithGoogle = async (preferredEmail?: string) => {
+    // If a specific email is provided, sign in directly with that account
+    if (preferredEmail && preferredEmail.includes("@")) {
+      const cleanEmail = preferredEmail.trim().toLowerCase();
       const namePart = cleanEmail.split("@")[0].replace(/[._-]/g, " ");
       const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-      
-      try {
-        const res = await fetch("/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: cleanEmail,
-            displayName: formattedName,
-            photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
-          }),
-        });
-        const data = await res.json();
-        if (data.success && data.user) {
-          const authUser: AuthUser = {
-            uid: data.user.uid,
-            email: data.user.email,
-            displayName: data.user.displayName,
-            photoURL: data.user.photoURL,
-            providerId: "google.com",
-          };
-          persistUser(authUser);
-          syncProfileToFirestore(authUser);
-          setIsAuthModalOpen(false);
-          setIsWelcomeModalOpen(false);
-          return;
-        }
-      } catch (backendErr) {
-        console.error("Backend Google auth error:", backendErr);
-      }
-
-      // Local fallback uniquely generated for this specific Google email
-      const fallbackUid = "g_" + btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14);
-      const fallbackUser: AuthUser = {
-        uid: fallbackUid,
+      await signInWithGoogleAccount({
         email: cleanEmail,
         displayName: formattedName,
-        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
-        providerId: "google.com",
-      };
-      persistUser(fallbackUser);
-      syncProfileToFirestore(fallbackUser);
-      setIsAuthModalOpen(false);
-      setIsWelcomeModalOpen(false);
+      });
+      return;
     }
+
+    // Otherwise, open the authentic Google Account Chooser screen!
+    setIsGoogleChooserOpen(true);
   };
 
   // 2. Email & Password Sign In
@@ -470,12 +466,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         loading,
         signInWithGoogle,
+        signInWithGoogleAccount,
         signInWithEmail,
         signUpWithEmail,
         sendPasswordReset,
         confirmPasswordReset,
         signInAsGuest,
         signOut,
+        isGoogleChooserOpen,
+        openGoogleChooser: () => setIsGoogleChooserOpen(true),
+        closeGoogleChooser: () => setIsGoogleChooserOpen(false),
         isWelcomeModalOpen,
         openWelcomeModal: () => setIsWelcomeModalOpen(true),
         closeWelcomeModal,

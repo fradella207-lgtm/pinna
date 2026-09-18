@@ -20,6 +20,7 @@ export const AuthModal: React.FC = () => {
     isAuthModalOpen, 
     closeAuthModal, 
     signInWithGoogle, 
+    openGoogleChooser,
     signInWithEmail, 
     signUpWithEmail, 
     sendPasswordReset, 
@@ -39,25 +40,11 @@ export const AuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = () => {
     setError(null);
     setSuccessMsg(null);
-    setLoading(true);
-    const cleanEmail = email.trim();
-    try {
-      await signInWithGoogle(cleanEmail || undefined);
-      closeAuthModal();
-    } catch (err: any) {
-      if (err?.message === "NEED_GOOGLE_EMAIL") {
-        setError("Inserisci il tuo indirizzo Gmail nel campo email per accedere con il tuo account Google.");
-      } else if (err?.message?.includes("annullato")) {
-        setError("Accesso con Google annullato.");
-      } else {
-        setError("Accesso con Google non riuscito. Inserisci la tua email e password qui sotto.");
-      }
-    } finally {
-      setLoading(false);
-    }
+    closeAuthModal();
+    openGoogleChooser();
   };
 
   const handleSubmitEmail = async (e: React.FormEvent) => {
