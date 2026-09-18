@@ -19,7 +19,9 @@ import {
   Compass,
   Tag,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Clipboard,
+  Link2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, CustomList, VideoAttachment } from "../types";
@@ -35,6 +37,8 @@ import {
   searchLocationsOnline, 
   parseGoogleMapsLinkOrCoords, 
   guessCategoryFromName,
+  resolveGoogleMapsLinkOnline,
+  ResolvedGoogleMapsPlace,
   GeoSearchResult 
 } from "../lib/locationSearch";
 
@@ -84,6 +88,8 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   // Address & Google Maps search suggestions
   const [searchLocationQuery, setSearchLocationQuery] = useState("");
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
+  const [mapsResolvedNotice, setMapsResolvedNotice] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<GeoSearchResult[]>([]);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
@@ -126,6 +132,8 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       setLocationSuggestions([]);
       setHasSearched(false);
       setIsLocatingUser(false);
+      setIsResolvingMapsLink(false);
+      setMapsResolvedNotice(null);
       setAttachedPhotos([]);
       setCoverPhotoIndex(0);
       setImageUrlInput("");
@@ -200,6 +208,103 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
     });
   };
 
+  const isGoogleMapsLink = (str: string) => {
+    return (
+      str.includes("maps.app.goo.gl") ||
+      str.includes("goo.gl/maps") ||
+      str.includes("google.com/maps") ||
+      str.includes("google.it/maps") ||
+      str.includes("maps.google.")
+    );
+  };
+
+  // --- GOOGLE MAPS RESOLVER & CLIPBOARD HANDLERS ---
+  const handleResolveGoogleMapsLink = async (rawInput: string): Promise<boolean> => {
+    const trimmed = rawInput.trim();
+    if (!trimmed) return false;
+
+    setIsResolvingMapsLink(true);
+    setMapsResolvedNotice(null);
+    setError(null);
+
+    try {
+      const resolved = await resolveGoogleMapsLinkOnline(trimmed);
+      if (resolved && resolved.lat && resolved.lng) {
+        setName(resolved.name);
+        setCity(resolved.city);
+        setSelectedCountry(normalizeCountryName(resolved.country));
+        setCoords({ lat: resolved.lat, lng: resolved.lng });
+        setCoordsSourceName(`Google Maps: ${resolved.name} • ${resolved.city}`);
+
+        if (resolved.category && (category === "Seleziona" || !category)) {
+          setCategory(resolved.category);
+        }
+        if (resolved.tag && !contextTag) {
+          setContextTag(resolved.tag);
+        }
+        if (resolved.entityType) {
+          setEntityType(resolved.entityType);
+        }
+        if (!videoLinkInput.trim()) {
+          setVideoLinkInput(resolved.originalUrl);
+        }
+
+        setMapsResolvedNotice(`Trovato con successo: "${resolved.name}" (${resolved.city})`);
+        setSearchLocationQuery(resolved.name);
+        setLocationSuggestions([]);
+        return true;
+      } else {
+        setError("Impossibile estrarre automaticamente il luogo dal link di Google Maps. Prova a inserire il nome o la località a mano.");
+        return false;
+      }
+    } catch (err: any) {
+      console.error("Errore risoluzione link Google Maps:", err);
+      setError("Errore nella lettura del link Google Maps: " + (err?.message || ""));
+      return false;
+    } finally {
+      setIsResolvingMapsLink(false);
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          const trimmed = text.trim();
+          setSearchLocationQuery(trimmed);
+          if (isGoogleMapsLink(trimmed)) {
+            await handleResolveGoogleMapsLink(trimmed);
+          } else {
+            await handleSearchLocation(trimmed);
+          }
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    const fallback = window.prompt("Incolla qui il link di Google Maps o l'indirizzo da cercare:");
+    if (fallback && fallback.trim()) {
+      const trimmed = fallback.trim();
+      setSearchLocationQuery(trimmed);
+      if (isGoogleMapsLink(trimmed)) {
+        await handleResolveGoogleMapsLink(trimmed);
+      } else {
+        await handleSearchLocation(trimmed);
+      }
+    }
+  };
+
+  const handleNameChange = (val: string) => {
+    if (isGoogleMapsLink(val)) {
+      handleResolveGoogleMapsLink(val);
+      return;
+    }
+    setName(val);
+  };
+
   // --- INTELLIGENT LOCATION SEARCH (GOOGLE MAPS LINKS, PHOTON & NOMINATIM) ---
   const handleSearchLocation = async (query: string) => {
     setSearchLocationQuery(query);
@@ -208,6 +313,12 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       setLocationSuggestions([]);
       setHasSearched(false);
       return;
+    }
+
+    // Direct Google Maps link resolution
+    if (isGoogleMapsLink(trimmed)) {
+      const resolvedOk = await handleResolveGoogleMapsLink(trimmed);
+      if (resolvedOk) return;
     }
 
     setIsSearchingLocation(true);
@@ -226,8 +337,8 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       const suggestions = await searchLocationsOnline(trimmed);
       setLocationSuggestions(suggestions);
 
-      // Auto-apply if it was an exact single coordinate match
-      if (suggestions.length === 1 && suggestions[0].source === "coordinates") {
+      // Auto-apply if it was an exact single coordinate match or Google Maps verified
+      if (suggestions.length === 1 && (suggestions[0].source === "coordinates" || suggestions[0].source === "google_maps")) {
         handleSelectLocation(suggestions[0]);
       }
     } catch {
@@ -501,43 +612,82 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 
           {/* 1. RICERCA RAPIDA INTELLIGENTE & GOOGLE MAPS */}
           <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                <Search className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Cerca Luogo o Incolla Link Google Maps</span>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5 truncate">
+                <Search className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="truncate">Cerca Luogo o Incolla Link Maps</span>
               </label>
 
-              <button
-                type="button"
-                onClick={handleDetectCurrentLocation}
-                disabled={isLocatingUser}
-                className="text-[11px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
-                title="Rileva dove ti trovi adesso con il GPS"
-              >
-                {isLocatingUser ? <Loader2 className="w-3 h-3 animate-spin text-emerald-600" /> : <Compass className="w-3 h-3 text-emerald-600" />}
-                <span>GPS Attuale</span>
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  disabled={isResolvingMapsLink}
+                  className="text-[11px] text-indigo-700 hover:text-indigo-900 bg-indigo-100/70 hover:bg-indigo-200/80 border border-indigo-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                  title="Incolla link o testo copiato da Google Maps"
+                >
+                  <Clipboard className="w-3 h-3 text-indigo-600" />
+                  <span>Incolla Link</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDetectCurrentLocation}
+                  disabled={isLocatingUser || isResolvingMapsLink}
+                  className="text-[11px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                  title="Rileva dove ti trovi adesso con il GPS"
+                >
+                  {isLocatingUser ? <Loader2 className="w-3 h-3 animate-spin text-emerald-600" /> : <Compass className="w-3 h-3 text-emerald-600" />}
+                  <span>GPS Attuale</span>
+                </button>
+              </div>
             </div>
+
+            {/* Resolving feedback banner */}
+            {isResolvingMapsLink && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow-sm animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin text-white shrink-0" />
+                <span className="truncate">Risoluzione link Google Maps condiviso in corso...</span>
+              </div>
+            )}
+
+            {/* Resolved confirmation banner */}
+            {mapsResolvedNotice && !isResolvingMapsLink && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow-sm">
+                <div className="flex items-center gap-2 truncate">
+                  <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                  <span className="truncate">{mapsResolvedNotice}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMapsResolvedNotice(null)}
+                  className="text-emerald-200 hover:text-white ml-2 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <div className="relative">
               <input
                 type="text"
                 value={searchLocationQuery}
                 onChange={(e) => handleSearchLocation(e.target.value)}
-                placeholder="Es. 'Passo Giau', 'Chamonix', 'Braies' o link Google Maps..."
+                placeholder="Es. 'Passo Giau', 'Chamonix', o incolla 'https://maps.app.goo.gl/...'"
                 className="w-full pl-9 pr-9 py-2 rounded-xl bg-white border border-indigo-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 shadow-xs"
               />
               <Search className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
-              {isSearchingLocation && (
+              {(isSearchingLocation || isResolvingMapsLink) && (
                 <Loader2 className="w-4 h-4 animate-spin text-indigo-600 absolute right-3 top-2.5" />
               )}
-              {searchLocationQuery && !isSearchingLocation && (
+              {searchLocationQuery && !isSearchingLocation && !isResolvingMapsLink && (
                 <button
                   type="button"
                   onClick={() => {
                     setSearchLocationQuery("");
                     setLocationSuggestions([]);
                     setHasSearched(false);
+                    setMapsResolvedNotice(null);
                   }}
                   className="absolute right-2.5 top-2 p-0.5 text-slate-400 hover:text-slate-600 text-xs"
                 >
@@ -564,11 +714,18 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                         <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
                           {sug.name}
                         </p>
-                        {sug.categoryGuess && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 shrink-0 font-medium">
-                            {sug.categoryGuess}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {sug.source === "google_maps" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold shrink-0">
+                              Google Maps 📍
+                            </span>
+                          )}
+                          {sug.categoryGuess && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 shrink-0 font-medium">
+                              {sug.categoryGuess}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p className="text-[10px] text-slate-500 truncate mt-0.5">
                         {sug.city ? `${sug.city}, ` : ""}{sug.country}
@@ -641,7 +798,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Es. Passo Giau, Rifugio Lagazuoi, Borgo di Civita..."
               className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
             />

@@ -18,7 +18,7 @@ export interface GeoSearchResult {
   displayName: string;
   categoryGuess?: string;
   typeLabel?: string; // e.g. "Monumento", "Museo", "Strada", "Passo Montano", "Città"
-  source: "local_cache" | "photon" | "nominatim" | "coordinates";
+  source: "local_cache" | "photon" | "nominatim" | "coordinates" | "google_maps";
 }
 
 // Curated high-precision offline spots (Famous landmarks, Alps, passes, lakes, world monuments)
@@ -391,6 +391,53 @@ const CURATED_KNOWN_PLACES: Array<{
   },
 ];
 
+export interface ResolvedGoogleMapsPlace {
+  name: string;
+  lat: number;
+  lng: number;
+  city: string;
+  province?: string;
+  region?: string;
+  country: string;
+  category: string;
+  tag?: string;
+  entityType: "PUNTO" | "PERCORSO";
+  originalUrl: string;
+  resolvedUrl: string;
+}
+
+/**
+ * Calls backend API to unwrap and resolve Google Maps short links (maps.app.goo.gl)
+ * or complex Google Maps URLs to extract exact coordinates, place name, and city.
+ */
+export async function resolveGoogleMapsLinkOnline(input: string): Promise<ResolvedGoogleMapsPlace | null> {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  try {
+    const res = await fetch("/api/resolve-maps-url", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: trimmed }),
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data = await res.json();
+    if (data.success && data.data) {
+      return data.data as ResolvedGoogleMapsPlace;
+    }
+  } catch (err) {
+    console.warn("Chiamata resolveGoogleMapsLinkOnline non riuscita:", err);
+  }
+
+  return null;
+}
+
 /**
  * Parses raw text or URL to detect Google Maps links, coordinates, or search queries
  */
@@ -399,6 +446,7 @@ export function parseGoogleMapsLinkOrCoords(input: string): {
   lng?: number;
   extractedQuery?: string;
   isLink: boolean;
+  isShortLink?: boolean;
 } {
   const trimmed = input.trim();
 
@@ -416,21 +464,33 @@ export function parseGoogleMapsLinkOrCoords(input: string): {
   }
 
   // 2. Google Maps URL patterns:
+  // e.g. https://maps.app.goo.gl/5jUom49pGr3nbVpv5 (Short link from "Condividi" button)
   // e.g. https://www.google.com/maps/place/Passo+Giau/@46.4825,12.0538,15z/...
   // e.g. https://maps.google.com/?q=46.4825,12.0538
   // e.g. https://maps.google.com/?q=Passo+Giau
-  // e.g. https://www.google.com/maps/@46.4825,12.0538,15z
-  const isGoogleLink = trimmed.includes("google.com/maps") || trimmed.includes("maps.app.goo.gl") || trimmed.includes("goo.gl/maps");
+  const isShortLink = trimmed.includes("maps.app.goo.gl") || trimmed.includes("goo.gl/maps");
+  const isGoogleLink = isShortLink || trimmed.includes("google.com/maps") || trimmed.includes("google.it/maps") || trimmed.includes("maps.google.");
+
   if (isGoogleLink) {
+    // Check for exact pin coordinate in URL: !3d<lat>!4d<lng>
+    const pinMatch = trimmed.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (pinMatch) {
+      const lat = parseFloat(pinMatch[1]);
+      const lng = parseFloat(pinMatch[2]);
+      const placeMatch = trimmed.match(/\/place\/([^/@?]+)/);
+      const extractedQuery = placeMatch ? decodeURIComponent(placeMatch[1].replace(/\+/g, " ")) : undefined;
+      return { lat, lng, extractedQuery, isLink: true, isShortLink };
+    }
+
     // Check for @lat,lng
     const atMatch = trimmed.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (atMatch) {
       const lat = parseFloat(atMatch[1]);
       const lng = parseFloat(atMatch[2]);
       // Also see if place name is in path
-      const placeMatch = trimmed.match(/\/place\/([^/@]+)/);
+      const placeMatch = trimmed.match(/\/place\/([^/@?]+)/);
       const extractedQuery = placeMatch ? decodeURIComponent(placeMatch[1].replace(/\+/g, " ")) : undefined;
-      return { lat, lng, extractedQuery, isLink: true };
+      return { lat, lng, extractedQuery, isLink: true, isShortLink };
     }
 
     // Check for ?q=lat,lng or ?q=query
@@ -439,45 +499,48 @@ export function parseGoogleMapsLinkOrCoords(input: string): {
       const qVal = decodeURIComponent(qMatch[1].replace(/\+/g, " "));
       const coordParts = qVal.split(",");
       if (coordParts.length === 2 && !isNaN(parseFloat(coordParts[0])) && !isNaN(parseFloat(coordParts[1]))) {
-        return { lat: parseFloat(coordParts[0]), lng: parseFloat(coordParts[1]), isLink: true };
+        return { lat: parseFloat(coordParts[0]), lng: parseFloat(coordParts[1]), isLink: true, isShortLink };
       }
-      return { extractedQuery: qVal, isLink: true };
+      return { extractedQuery: qVal, isLink: true, isShortLink };
     }
 
-    return { isLink: true };
+    return { isLink: true, isShortLink };
   }
 
   return { isLink: false };
 }
 
 /**
- * Intelligent categorization guess based on place name
+ * Intelligent categorization guess based on place name aligned with TAXONOMIA_360
  */
 export function guessCategoryFromName(name: string): string | undefined {
   const lower = name.toLowerCase();
-  if (lower.includes("passo") || lower.includes("col ") || lower.includes("valico") || lower.includes("pass ") || lower.includes("joch")) {
-    return "Passi di Montagna";
+
+  if (lower.includes("santuario") || lower.includes("chiesa") || lower.includes("basilica") || lower.includes("duomo") || lower.includes("cattedrale") || lower.includes("abbazia") || lower.includes("eremo") || lower.includes("borgo") || lower.includes("castello") || lower.includes("museo") || lower.includes("monumento") || lower.includes("rocca")) {
+    return "Cultura & Storia";
   }
-  if (lower.includes("rifugio") || lower.includes("cima") || lower.includes("monte ") || lower.includes("sentiero") || lower.includes("trek") || lower.includes("bivacco") || lower.includes("vetta")) {
-    return "Trekking";
+  if (lower.includes("passo") || lower.includes("col ") || lower.includes("valico") || lower.includes("pass ") || lower.includes("joch") || lower.includes("strada panoramica") || lower.includes("ciclabile")) {
+    return "Guida & Panorami";
   }
-  if (lower.includes("lago") || lower.includes("cascata") || lower.includes("fiume") || lower.includes("lake") || lower.includes("orrido")) {
-    return "Laghi e Fiumi";
+  if (lower.includes("rifugio") || lower.includes("cima") || lower.includes("monte ") || lower.includes("sentiero") || lower.includes("trek") || lower.includes("bivacco") || lower.includes("vetta") || lower.includes("sci ") || lower.includes("ferrata")) {
+    return "Sport & Natura";
   }
-  if (lower.includes("belvedere") || lower.includes("punto panoramico") || lower.includes("vista") || lower.includes("viewpoint") || lower.includes("terrazza")) {
-    return "Punti Panoramici";
+  if (lower.includes("lago") || lower.includes("cascata") || lower.includes("fiume") || lower.includes("belvedere") || lower.includes("punto panoramico") || lower.includes("spiaggia") || lower.includes("vista") || lower.includes("viewpoint") || lower.includes("parco")) {
+    return "Natura & Relax";
   }
-  if (lower.includes("ristorante") || lower.includes("osteria") || lower.includes("trattoria") || lower.includes("baita") || lower.includes("malga")) {
-    return "Ristoranti Tipici";
+  if (lower.includes("ristorante") || lower.includes("osteria") || lower.includes("trattoria") || lower.includes("baita") || lower.includes("malga") || lower.includes("pizzeria") || lower.includes("bar ") || lower.includes("agriturismo")) {
+    return "Cibo & Sapori";
   }
-  if (lower.includes("borgo") || lower.includes("castello") || lower.includes("centro storico") || lower.includes("rocca")) {
-    return "Borghi e Centri Storici";
+  if (lower.includes("piazza") || lower.includes("corso") || lower.includes("rooftop") || lower.includes("via ")) {
+    return "Svago & Città";
   }
+
   return undefined;
 }
 
 /**
  * Multi-provider search with fallback logic:
+ * 0. Google Maps Resolver (for shortlinks like maps.app.goo.gl and Google links)
  * 1. Curated Instant Cache
  * 2. Photon (Komoot API - ultra fast, unmetered, great for alpine POIs)
  * 3. Nominatim (OpenStreetMap with structured queries)
@@ -486,7 +549,34 @@ export async function searchLocationsOnline(query: string): Promise<GeoSearchRes
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  // Check if link or coordinates
+  // 0. Check if query is or contains a Google Maps link (e.g. maps.app.goo.gl/..., goo.gl/maps/...)
+  const isGoogleLink = trimmed.includes("google.com/maps") || 
+                       trimmed.includes("google.it/maps") || 
+                       trimmed.includes("maps.app.goo.gl") || 
+                       trimmed.includes("goo.gl/maps") || 
+                       trimmed.includes("maps.google.");
+
+  if (isGoogleLink) {
+    const resolved = await resolveGoogleMapsLinkOnline(trimmed);
+    if (resolved && resolved.lat && resolved.lng) {
+      return [
+        {
+          name: resolved.name,
+          city: resolved.city,
+          region: resolved.region,
+          country: resolved.country,
+          countryFlag: getCountryFlag(resolved.country),
+          lat: resolved.lat,
+          lng: resolved.lng,
+          displayName: `${resolved.name}, ${resolved.city} (${resolved.country}) • Verificato da Google Maps`,
+          categoryGuess: resolved.category,
+          source: "google_maps",
+        },
+      ];
+    }
+  }
+
+  // Check if direct link or coordinates
   const parsed = parseGoogleMapsLinkOrCoords(trimmed);
   if (parsed.lat !== undefined && parsed.lng !== undefined) {
     const lat = parsed.lat;

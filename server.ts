@@ -373,7 +373,329 @@ app.post("/api/auth/reset-password", (req, res) => {
   }
 });
 
+// --- GOOGLE MAPS SHORTLINK & REDIRECT RESOLVER ---
+interface ResolvedMapsPlace {
+  name: string;
+  lat: number;
+  lng: number;
+  city: string;
+  province?: string;
+  region?: string;
+  country: string;
+  category: string;
+  tag?: string;
+  entityType: "PUNTO" | "PERCORSO";
+  originalUrl: string;
+  resolvedUrl: string;
+}
+
+function guessCategoryFromMapsName(name: string): { category: string; tag: string; entityType: "PUNTO" | "PERCORSO" } {
+  const lower = name.toLowerCase();
+
+  if (lower.includes("santuario") || lower.includes("chiesa") || lower.includes("basilica") || lower.includes("duomo") || lower.includes("cattedrale") || lower.includes("abbazia") || lower.includes("eremo") || lower.includes("convento")) {
+    return { category: "Cultura & Storia", tag: "Chiese & Basiliche", entityType: "PUNTO" };
+  }
+  if (lower.includes("castello") || lower.includes("rocca") || lower.includes("forte") || lower.includes("palazzo") || lower.includes("torre")) {
+    return { category: "Cultura & Storia", tag: "Castelli", entityType: "PUNTO" };
+  }
+  if (lower.includes("borgo") || lower.includes("antico") || lower.includes("centro storico")) {
+    return { category: "Cultura & Storia", tag: "Borghi Antichi", entityType: "PUNTO" };
+  }
+  if (lower.includes("museo") || lower.includes("galleria") || lower.includes("scavi") || lower.includes("archeolog") || lower.includes("monumento")) {
+    return { category: "Cultura & Storia", tag: "Monumenti", entityType: "PUNTO" };
+  }
+  if (lower.includes("passo") || lower.includes("col ") || lower.includes("valico") || lower.includes("pass ") || lower.includes("joch") || lower.includes("strada panoramica")) {
+    return { category: "Guida & Panorami", tag: "Passi Montani", entityType: "PERCORSO" };
+  }
+  if (lower.includes("pista ciclabile") || lower.includes("ciclabile") || lower.includes("itinerario")) {
+    return { category: "Guida & Panorami", tag: "Piste Ciclabili", entityType: "PERCORSO" };
+  }
+  if (lower.includes("rifugio") || lower.includes("bivacco") || lower.includes("malga") || lower.includes("alpe")) {
+    return { category: "Sport & Natura", tag: "Rifugi Alpini", entityType: "PUNTO" };
+  }
+  if (lower.includes("sentiero") || lower.includes("trek") || lower.includes("trekking") || lower.includes("escursion") || lower.includes("alta via") || lower.includes("ferrata")) {
+    return { category: "Sport & Natura", tag: "Trekking & Sentieri", entityType: "PERCORSO" };
+  }
+  if (lower.includes("cima") || lower.includes("monte ") || lower.includes("vetta") || lower.includes("pizzo") || lower.includes("corno") || lower.includes("massiccio")) {
+    return { category: "Sport & Natura", tag: "Vette & Cime", entityType: "PUNTO" };
+  }
+  if (lower.includes("lago") || lower.includes("lake") || lower.includes("laghetto")) {
+    return { category: "Natura & Relax", tag: "Laghi", entityType: "PUNTO" };
+  }
+  if (lower.includes("cascata") || lower.includes("cascatelle") || lower.includes("fiume") || lower.includes("gola") || lower.includes("orrido")) {
+    return { category: "Natura & Relax", tag: "Cascate & Fiumi", entityType: "PUNTO" };
+  }
+  if (lower.includes("belvedere") || lower.includes("punto panoramico") || lower.includes("vista") || lower.includes("viewpoint") || lower.includes("terrazza panoramica")) {
+    return { category: "Natura & Relax", tag: "Punti Panoramici", entityType: "PUNTO" };
+  }
+  if (lower.includes("spiaggia") || lower.includes("cala ") || lower.includes("baia") || lower.includes("mare") || lower.includes("costa") || lower.includes("lido")) {
+    return { category: "Natura & Relax", tag: "Spiagge & Mare", entityType: "PUNTO" };
+  }
+  if (lower.includes("ristorante") || lower.includes("osteria") || lower.includes("trattoria") || lower.includes("pizzeria") || lower.includes("agriturismo") || lower.includes("baita") || lower.includes("locanda")) {
+    return { category: "Cibo & Sapori", tag: "Ristoranti Tipici", entityType: "PUNTO" };
+  }
+  if (lower.includes("bar") || lower.includes("pub") || lower.includes("enoteca") || lower.includes("caffè") || lower.includes("bistrot") || lower.includes("aperitivo")) {
+    return { category: "Cibo & Sapori", tag: "Aperitivi & Bar", entityType: "PUNTO" };
+  }
+  if (lower.includes("piazza") || lower.includes("corso") || lower.includes("rooftop") || lower.includes("mercato") || lower.includes("via ")) {
+    return { category: "Svago & Città", tag: "Piazze Principali", entityType: "PUNTO" };
+  }
+
+  return { category: "Cultura & Storia", tag: "Monumenti", entityType: "PUNTO" };
+}
+
+async function resolveGoogleMapsUrl(rawInput: string): Promise<ResolvedMapsPlace | null> {
+  const urlMatch = rawInput.match(/(https?:\/\/[^\s"'<>]+)/i);
+  if (!urlMatch) return null;
+  let currentUrl = urlMatch[0];
+
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cookie": "CONSENT=YES+IT.it+V10+BX; SOCS=CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAml0IAEaBgiA_LmmBg",
+  };
+
+  let resolvedUrl = currentUrl;
+
+  // Follow redirect chain (up to 8 hops)
+  for (let hop = 0; hop < 8; hop++) {
+    try {
+      const res = await fetch(currentUrl, {
+        method: "GET",
+        redirect: "manual",
+        headers,
+      });
+
+      const loc = res.headers.get("location");
+      if (!loc) {
+        resolvedUrl = currentUrl;
+        break;
+      }
+
+      let nextUrl = loc;
+      if (nextUrl.startsWith("/")) {
+        try {
+          const u = new URL(currentUrl);
+          nextUrl = u.origin + nextUrl;
+        } catch {
+          // ignore
+        }
+      }
+
+      // Bypass consent.google.com redirects by unwrapping 'continue' or 'destination' query param
+      if (nextUrl.includes("consent.google.com") || nextUrl.includes("consent.youtube.com")) {
+        const contMatch = nextUrl.match(/[?&](?:continue|destination)=([^&]+)/);
+        if (contMatch) {
+          nextUrl = decodeURIComponent(contMatch[1]);
+        }
+      }
+
+      currentUrl = nextUrl;
+      resolvedUrl = nextUrl;
+
+      // If we already have full place path and coordinates in URL, we can stop early
+      if (
+        (resolvedUrl.includes("/place/") || resolvedUrl.includes("@")) &&
+        (resolvedUrl.includes("!3d") || resolvedUrl.includes("@"))
+      ) {
+        break;
+      }
+    } catch (fetchErr) {
+      console.warn("Errore hop redirect Google Maps:", fetchErr);
+      break;
+    }
+  }
+
+  // 1. Extract coordinates
+  let lat: number | undefined;
+  let lng: number | undefined;
+
+  // Pinpoint marker coordinate: !3d<lat>!4d<lng>
+  const pinMatch = resolvedUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (pinMatch) {
+    lat = parseFloat(pinMatch[1]);
+    lng = parseFloat(pinMatch[2]);
+  }
+
+  // Fallback @lat,lng
+  if (lat === undefined || lng === undefined) {
+    const atMatch = resolvedUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) {
+      lat = parseFloat(atMatch[1]);
+      lng = parseFloat(atMatch[2]);
+    }
+  }
+
+  // Fallback ?q=lat,lng or ll=lat,lng
+  if (lat === undefined || lng === undefined) {
+    const qMatch = resolvedUrl.match(/[?&](?:q|ll|query|center)=(-?\d+\.\d+)[,%](-?\d+\.\d+)/);
+    if (qMatch) {
+      lat = parseFloat(qMatch[1]);
+      lng = parseFloat(qMatch[2]);
+    }
+  }
+
+  // 2. Extract place name
+  let name: string | undefined;
+
+  // Check /place/<NAME>/
+  const placeMatch = resolvedUrl.match(/\/place\/([^/@?]+)/);
+  if (placeMatch) {
+    name = decodeURIComponent(placeMatch[1].replace(/\+/g, " "));
+  }
+
+  // Check ?q=<NAME>
+  if (!name) {
+    const qNameMatch = resolvedUrl.match(/[?&]q=([^&]+)/);
+    if (qNameMatch) {
+      const qVal = decodeURIComponent(qNameMatch[1].replace(/\+/g, " "));
+      if (!/^-?\d+\.\d+,-?\d+\.\d+$/.test(qVal)) {
+        name = qVal;
+      }
+    }
+  }
+
+  // 3. If coordinates or name are still missing, fetch HTML body
+  if (lat === undefined || lng === undefined || !name) {
+    try {
+      const htmlRes = await fetch(resolvedUrl, { headers });
+      if (htmlRes.ok) {
+        const html = await htmlRes.text();
+
+        // Check staticmap center
+        if (lat === undefined || lng === undefined) {
+          const centerMatch = html.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/);
+          if (centerMatch) {
+            lat = parseFloat(centerMatch[1]);
+            lng = parseFloat(centerMatch[2]);
+          }
+        }
+
+        // Check HTML title
+        if (!name) {
+          const titleMatch = html.match(/<title>([^<]+?)<\/title>/);
+          if (titleMatch) {
+            let candidateTitle = titleMatch[1].replace(/\s*-\s*Google Maps\s*$/i, "").trim();
+            if (candidateTitle && !candidateTitle.toLowerCase().includes("google maps")) {
+              name = candidateTitle;
+            }
+          }
+        }
+
+        // Check OpenGraph title
+        if (!name) {
+          const ogMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+          if (ogMatch && !ogMatch[1].toLowerCase().includes("google maps")) {
+            name = ogMatch[1];
+          }
+        }
+      }
+    } catch (bodyErr) {
+      console.warn("Errore lettura HTML Google Maps:", bodyErr);
+    }
+  }
+
+  // If still missing name, default
+  if (!name) {
+    name = "Spot da Google Maps";
+  }
+
+  // Clean title if it contains extra unwanted strings
+  name = name.replace(/^Google Maps\s*[-–:]\s*/i, "").trim();
+
+  // If coordinates are missing, attempt geocoding the name
+  if (lat === undefined || lng === undefined) {
+    const geocoded = await geocodeLive(name);
+    if (geocoded) {
+      lat = geocoded.lat;
+      lng = geocoded.lng;
+    }
+  }
+
+  if (lat === undefined || lng === undefined) {
+    return null;
+  }
+
+  // 4. Reverse Geocoding for City, Province, Region
+  let city = "Italia";
+  let province: string | undefined;
+  let region: string | undefined;
+  let country = "Italia";
+
+  try {
+    const revEndpoint = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`;
+    const revRes = await fetch(revEndpoint, {
+      headers: {
+        "User-Agent": "PinnaSpotterApp/2.0 (spotter@pinna.app)",
+        "Accept-Language": "it,en",
+      },
+    });
+    if (revRes.ok) {
+      const revData = (await revRes.json()) as any;
+      const addr = revData.address || {};
+      city = addr.city || addr.town || addr.village || addr.municipality || addr.county || addr.suburb || city;
+      province = addr.county || addr.province;
+      region = addr.state || addr.region;
+      country = addr.country || "Italia";
+
+      // If place name was generic or missing, use OpenStreetMap place name
+      if (name === "Spot da Google Maps" && revData.name) {
+        name = revData.name;
+      }
+    }
+  } catch (revErr) {
+    console.warn("Reverse geocode fallito:", revErr);
+  }
+
+  const { category, tag, entityType } = guessCategoryFromMapsName(name);
+
+  return {
+    name,
+    lat,
+    lng,
+    city,
+    province,
+    region,
+    country,
+    category,
+    tag,
+    entityType,
+    originalUrl: currentUrl,
+    resolvedUrl,
+  };
+}
+
+// API Endpoint to resolve Google Maps shortlinks and full links
+app.post("/api/resolve-maps-url", async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url || typeof url !== "string" || !url.trim()) {
+      return res.status(400).json({ error: "URL richiesto", message: "Inserisci un link di Google Maps valido." });
+    }
+
+    const resolved = await resolveGoogleMapsUrl(url.trim());
+    if (!resolved) {
+      return res.status(404).json({
+        error: "not-found",
+        message: "Impossibile trovare le coordinate dal link di Google Maps fornito. Prova a inserire il nome del luogo direttamente.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: resolved,
+    });
+  } catch (err: any) {
+    console.error("Errore resolve-maps-url:", err);
+    return res.status(500).json({
+      error: "server-error",
+      message: "Errore durante la risoluzione del link di Google Maps: " + (err?.message || err),
+    });
+  }
+});
+
 app.post("/api/extract", async (req, res) => {
+  let resolvedFromMaps: ResolvedMapsPlace | null = null;
   try {
     const { input_text, media_hint, video_source_link } = req.body;
 
@@ -381,10 +703,33 @@ app.post("/api/extract", async (req, res) => {
       return res.status(400).json({ error: "Testo di input richiesto" });
     }
 
+    // Check if input contains a Google Maps link to pre-resolve exact coordinates
+    const mapsLinkMatch = (input_text + " " + (video_source_link || "")).match(
+      /https?:\/\/(?:maps\.app\.goo\.gl|goo\.gl\/maps|www\.google\.[a-z.]+\/maps|maps\.google\.[a-z.]+)[^\s"'<>]+/i
+    );
+    if (mapsLinkMatch) {
+      try {
+        resolvedFromMaps = await resolveGoogleMapsUrl(mapsLinkMatch[0]);
+      } catch (mErr) {
+        console.warn("Pre-risoluzione link Google Maps non riuscita:", mErr);
+      }
+    }
+
     const ai = getGeminiClient();
 
     if (!ai) {
       const dynamicResult = await generateIntelligentDynamicExtraction(input_text, video_source_link);
+      if (resolvedFromMaps) {
+        dynamicResult.nome = resolvedFromMaps.name;
+        dynamicResult.citta_o_zona = resolvedFromMaps.city;
+        dynamicResult.coordinate = { lat: resolvedFromMaps.lat, lng: resolvedFromMaps.lng };
+        dynamicResult.query_search_maps = `${resolvedFromMaps.name} ${resolvedFromMaps.city}`;
+        dynamicResult.query_google_maps = `${resolvedFromMaps.name} ${resolvedFromMaps.city}`;
+        dynamicResult.categoria = resolvedFromMaps.category;
+        dynamicResult.categoria_principale = resolvedFromMaps.category;
+        if (resolvedFromMaps.tag) dynamicResult.tag_contestuale = resolvedFromMaps.tag;
+        if (resolvedFromMaps.entityType) dynamicResult.tipo_entita = resolvedFromMaps.entityType;
+      }
       return res.json({
         data: dynamicResult,
         source: "dynamic_live_extraction",
@@ -396,6 +741,10 @@ app.post("/api/extract", async (req, res) => {
       media_hint ? `Nota sul media: ${media_hint}\n` : ""
     }${
       video_source_link ? `Link video sorgente: ${video_source_link}\n` : ""
+    }${
+      resolvedFromMaps
+        ? `\nCoordinate e luogo verificati da Google Maps: Nome: "${resolvedFromMaps.name}", Città: "${resolvedFromMaps.city}", Coordinate: [${resolvedFromMaps.lat}, ${resolvedFromMaps.lng}], Categoria suggerita: "${resolvedFromMaps.category}". Usa queste coordinate e questo nome con massima priorità.\n`
+        : ""
     }\nEstrai le informazioni del luogo reale menzionato. Rispondi ESCLUSIVAMENTE con un oggetto JSON valido seguendo scrupolosamente lo schema richiesto.`;
 
     const fetchGeminiWithTimeout = async () => {
@@ -441,15 +790,17 @@ app.post("/api/extract", async (req, res) => {
 
     // Coordinate resolution: geocode via query_search_maps
     const searchQuery = parsed.query_search_maps || parsed.nome || input_text;
-    let coords = parsed.coordinate;
+    let coords = resolvedFromMaps
+      ? { lat: resolvedFromMaps.lat, lng: resolvedFromMaps.lng }
+      : parsed.coordinate;
     if (!coords || typeof coords.lat !== "number") {
       coords = (await geocodeLive(searchQuery)) || estimateCoordinates(searchQuery);
     }
 
     // Determine clean name and city
     const queryParts = (parsed.query_search_maps || "").split(/\s+/);
-    const placeName = parsed.nome || (queryParts.length > 0 ? queryParts.slice(0, 3).join(" ") : "Luogo Estratto");
-    const cittaOrZona = parsed.citta_o_zona || (queryParts.length > 3 ? queryParts.slice(3).join(" ") : "Dolomiti / Italia");
+    const placeName = resolvedFromMaps?.name || parsed.nome || (queryParts.length > 0 ? queryParts.slice(0, 3).join(" ") : "Luogo Estratto");
+    const cittaOrZona = resolvedFromMaps?.city || parsed.citta_o_zona || (queryParts.length > 3 ? queryParts.slice(3).join(" ") : "Dolomiti / Italia");
 
     // Route coordinates: ensure array of { lat, lng } (NEVER nested array)
     let routeCoords: { lat: number; lng: number }[] | undefined = undefined;
@@ -530,6 +881,17 @@ app.post("/api/extract", async (req, res) => {
       req.body.input_text || "",
       req.body.video_source_link
     );
+    if (resolvedFromMaps) {
+      dynamicResult.nome = resolvedFromMaps.name;
+      dynamicResult.citta_o_zona = resolvedFromMaps.city;
+      dynamicResult.coordinate = { lat: resolvedFromMaps.lat, lng: resolvedFromMaps.lng };
+      dynamicResult.query_search_maps = `${resolvedFromMaps.name} ${resolvedFromMaps.city}`;
+      dynamicResult.query_google_maps = `${resolvedFromMaps.name} ${resolvedFromMaps.city}`;
+      dynamicResult.categoria = resolvedFromMaps.category;
+      dynamicResult.categoria_principale = resolvedFromMaps.category;
+      if (resolvedFromMaps.tag) dynamicResult.tag_contestuale = resolvedFromMaps.tag;
+      if (resolvedFromMaps.entityType) dynamicResult.tipo_entita = resolvedFromMaps.entityType;
+    }
     return res.json({
       data: dynamicResult,
       source: "dynamic_live_extraction",
