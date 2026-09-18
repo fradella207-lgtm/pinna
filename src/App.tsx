@@ -15,7 +15,6 @@ import { AiExtractorModal } from "./components/AiExtractorModal";
 import { AuthModal } from "./components/AuthModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { WelcomeLoginModal } from "./components/WelcomeLoginModal";
-import { GoogleAccountChooserModal } from "./components/GoogleAccountChooserModal";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { SpecialFilterType } from "./components/ActivityFilterBar";
 import { ACTIVITY_FILTERS } from "./data/categories";
@@ -495,7 +494,6 @@ export default function App() {
         isOpen={isWelcomeModalOpen} 
         onClose={closeWelcomeModal} 
       />
-      <GoogleAccountChooserModal />
       <AuthModal />
       <SettingsModal 
         places={places} 

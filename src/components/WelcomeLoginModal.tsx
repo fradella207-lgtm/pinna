@@ -37,7 +37,6 @@ type AuthViewMode = "login" | "register" | "forgot_password";
 export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, onClose }) => {
   const { 
     signInWithGoogle, 
-    openGoogleChooser,
     signInWithEmail, 
     signUpWithEmail, 
     sendPasswordReset, 
@@ -71,10 +70,22 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
 
   if (!isOpen && user) return null;
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setError(null);
     setSuccessMessage(null);
-    openGoogleChooser();
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      onClose();
+    } catch (err: any) {
+      if (err?.message?.includes("annullato")) {
+        setError("Accesso con Google annullato.");
+      } else {
+        setError(err?.message || "Impossibile completare l'accesso con Google. Riprova.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleManualAuth = async (e: React.FormEvent) => {

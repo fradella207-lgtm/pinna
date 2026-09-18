@@ -20,7 +20,6 @@ export const AuthModal: React.FC = () => {
     isAuthModalOpen, 
     closeAuthModal, 
     signInWithGoogle, 
-    openGoogleChooser,
     signInWithEmail, 
     signUpWithEmail, 
     sendPasswordReset, 
@@ -40,11 +39,22 @@ export const AuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
     setError(null);
     setSuccessMsg(null);
-    closeAuthModal();
-    openGoogleChooser();
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      closeAuthModal();
+    } catch (err: any) {
+      if (err?.message?.includes("annullato")) {
+        setError("Accesso con Google annullato.");
+      } else {
+        setError(err?.message || "Accesso con Google non riuscito. Riprova.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmitEmail = async (e: React.FormEvent) => {
