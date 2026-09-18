@@ -43,14 +43,17 @@ export const AuthModal: React.FC = () => {
     setError(null);
     setSuccessMsg(null);
     setLoading(true);
+    const cleanEmail = email.trim();
     try {
-      await signInWithGoogle(email.trim() || undefined);
+      await signInWithGoogle(cleanEmail || undefined);
       closeAuthModal();
     } catch (err: any) {
-      if (err?.message?.includes("annullato")) {
+      if (err?.message === "NEED_GOOGLE_EMAIL") {
+        setError("Inserisci il tuo indirizzo Gmail nel campo email per accedere con il tuo account Google.");
+      } else if (err?.message?.includes("annullato")) {
         setError("Accesso con Google annullato.");
       } else {
-        setError("Accesso con Google non riuscito. Accedi o registrati con la tua email sotto.");
+        setError("Accesso con Google non riuscito. Inserisci la tua email e password qui sotto.");
       }
     } finally {
       setLoading(false);

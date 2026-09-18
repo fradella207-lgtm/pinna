@@ -50,9 +50,12 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [resetCode, setResetCode] = useState("");
+  const [showGoogleEmailPrompt, setShowGoogleEmailPrompt] = useState(false);
+  const [googleDirectEmail, setGoogleDirectEmail] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,18 +72,23 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
 
   if (!isOpen && user) return null;
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (customGoogleEmail?: string) => {
     setError(null);
     setSuccessMessage(null);
     setLoading(true);
+    const targetEmail = (customGoogleEmail || email).trim();
     try {
-      await signInWithGoogle(email.trim() || undefined);
+      await signInWithGoogle(targetEmail || undefined);
+      setShowGoogleEmailPrompt(false);
       onClose();
     } catch (err: any) {
-      if (err?.message?.includes("annullato")) {
+      if (err?.message === "NEED_GOOGLE_EMAIL") {
+        setShowGoogleEmailPrompt(true);
+        setError("Inserisci il tuo indirizzo Gmail per completare l'accesso con il tuo account.");
+      } else if (err?.message?.includes("annullato")) {
         setError("Accesso Google annullato.");
       } else {
-        setError("Accesso Google non riuscito. Puoi accedere o registrarti con la tua email sotto.");
+        setError(err?.message || "Accesso Google non riuscito. Puoi creare il tuo account con email e password qui sotto.");
       }
     } finally {
       setLoading(false);
@@ -103,6 +111,11 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
       return;
     }
 
+    if (mode === "register" && password !== confirmPassword) {
+      setError("Le due password non coincidono. Controlla e riprova.");
+      return;
+    }
+
     setLoading(true);
     try {
       if (mode === "login") {
@@ -114,11 +127,11 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
     } catch (err: any) {
       const msg = err?.message || String(err);
       if (msg.includes("user-not-found") || msg.includes("Nessun account")) {
-        setError("Nessun account trovato per questa email. Clicca su 'Crea Account' sotto!");
+        setError("Nessun account trovato con questa email. Clicca su 'Crea Account' per registrarti in pochi secondi!");
       } else if (msg.includes("wrong-password") || msg.includes("non corretta")) {
-        setError("Password non corretta. Usa 'Password dimenticata?' per reimpostarla.");
+        setError("Password non corretta. Usa 'Password dimenticata?' se non la ricordi.");
       } else if (msg.includes("already-in-use")) {
-        setError("Email già registrata. Clicca su 'Accedi' per entrare con la tua password.");
+        setError("Email già registrata! Clicca su 'Accedi' per entrare con la tua password.");
       } else {
         setError(msg || "Si è verificato un errore durante l'autenticazione.");
       }
@@ -340,33 +353,87 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
           {mode !== "forgot_password" && (
             <>
               {/* Primary: Google Sign-in */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                className="w-full py-3 px-4 rounded-2xl bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-900 font-bold text-xs sm:text-sm shadow-xs hover:shadow-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-60 group"
-              >
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              {showGoogleEmailPrompt ? (
+                <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-2.5 text-left">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span className="text-xs font-bold text-slate-900">Accesso con Account Google</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Inserisci il tuo indirizzo Gmail per collegare il tuo account univoco:
+                  </p>
+                  <input
+                    type="email"
+                    value={googleDirectEmail}
+                    onChange={(e) => setGoogleDirectEmail(e.target.value)}
+                    placeholder="iltuoindirizzo@gmail.com"
+                    autoFocus
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-blue-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-xs"
                   />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{loading ? "Accesso in corso..." : "Continua con Google"}</span>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-              </button>
+                  <div className="flex gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      disabled={loading || !googleDirectEmail.includes("@")}
+                      onClick={() => handleGoogleSignIn(googleDirectEmail)}
+                      className="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Continua con questa email</span>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleEmailPrompt(false)}
+                      className="py-2.5 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                    >
+                      Annulla
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleGoogleSignIn()}
+                  disabled={loading}
+                  className="w-full py-3 px-4 rounded-2xl bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-900 font-bold text-xs sm:text-sm shadow-xs hover:shadow-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-60 group"
+                >
+                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span>{loading ? "Accesso in corso..." : "Continua con Google"}</span>
+                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              )}
 
               {/* Divider */}
               <div className="relative flex items-center justify-center my-1">
@@ -444,6 +511,25 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
                     />
                   </div>
                 </div>
+
+                {mode === "register" && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Conferma Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Ripeti la password scelta"
+                        required
+                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <button
                   type="submit"

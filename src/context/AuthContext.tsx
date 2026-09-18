@@ -143,6 +143,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen to Firebase client auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        // If there's an existing manual user in local storage with a different email, preserve it
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && parsed.email && fbUser.email && parsed.email.toLowerCase() !== fbUser.email.toLowerCase()) {
+              console.log("Preserving active custom user session:", parsed.email);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
         const authUser: AuthUser = {
           uid: fbUser.uid,
           email: fbUser.email,
@@ -187,26 +202,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
     } catch (popupErr: any) {
-      console.warn("Firebase popup sign-in did not complete, using secure Google flow:", popupErr?.message);
+      console.warn("Firebase popup sign-in did not complete, assessing direct Google flow:", popupErr?.message);
       
       // If popup was explicitly closed by the user, rethrow
       if (popupErr?.code === "auth/popup-closed-by-user") {
         throw new Error("Accesso con Google annullato.");
       }
 
-      // If domain unauthorized or iframe popup blocked: use direct Google authentication
-      const googleEmail = (preferredEmail && preferredEmail.trim()) || "dellaquila037@gmail.com";
-      const name = googleEmail.split("@")[0].replace(".", " ");
-      const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
+      // If user provided a specific Google email to authenticate with, use that email
+      const cleanEmail = preferredEmail?.trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes("@")) {
+        // Signal the UI that user's specific Google email is required to proceed
+        throw new Error("NEED_GOOGLE_EMAIL");
+      }
+
+      const namePart = cleanEmail.split("@")[0].replace(/[._-]/g, " ");
+      const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
       
       try {
         const res = await fetch("/api/auth/google", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: googleEmail,
+            email: cleanEmail,
             displayName: formattedName,
-            photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(googleEmail)}`,
+            photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
           }),
         });
         const data = await res.json();
@@ -228,13 +248,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Backend Google auth error:", backendErr);
       }
 
-      // Local fallback
-      const fallbackUid = "g_" + btoa(googleEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14);
+      // Local fallback uniquely generated for this specific Google email
+      const fallbackUid = "g_" + btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14);
       const fallbackUser: AuthUser = {
         uid: fallbackUid,
-        email: googleEmail,
+        email: cleanEmail,
         displayName: formattedName,
-        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(googleEmail)}`,
+        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
         providerId: "google.com",
       };
       persistUser(fallbackUser);

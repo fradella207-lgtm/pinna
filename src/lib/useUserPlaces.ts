@@ -66,7 +66,7 @@ export function useUserPlaces() {
     if (authLoading) return;
 
     // Key for local per-user or guest cache
-    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_v3";
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_guest";
 
     // If not logged in, load from local storage
     if (!user) {
@@ -90,8 +90,10 @@ export function useUserPlaces() {
       try {
         setPlaces(JSON.parse(cached));
       } catch {
-        // ignore
+        setPlaces(INITIAL_PLACES);
       }
+    } else {
+      setPlaces(INITIAL_PLACES);
     }
 
     // When logged in, listen to user's personal Firestore subcollection
@@ -139,7 +141,7 @@ export function useUserPlaces() {
       },
       (error) => {
         console.warn("Firestore snapshot listener notice, using local cache:", error);
-        const local = localStorage.getItem(cacheKey) || localStorage.getItem("spotter_saved_places_v3");
+        const local = localStorage.getItem(cacheKey);
         if (local) {
           try {
             setPlaces(JSON.parse(local));

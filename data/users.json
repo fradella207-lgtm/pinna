@@ -8,5 +8,15 @@
     "photoURL": "https://api.dicebear.com/7.x/bottts/svg?seed=dellaquila037%40gmail.com",
     "createdAt": "2026-09-18T08:06:27.918Z",
     "provider": "password"
+  },
+  "user_e84744575a66483d": {
+    "uid": "user_e84744575a66483d",
+    "email": "testuser@gmail.com",
+    "displayName": "Test User",
+    "passwordHash": "14a77e61975b61b6490a6f8553306f103fb04878478abaacefb2c4dcf192925276de98d4963e953ca47a731fb5bdaac628f5fb7447a9795cab5146789af8d6ad",
+    "salt": "b3091dab313437b1d9990f2181fa1e45",
+    "photoURL": "https://api.dicebear.com/7.x/bottts/svg?seed=testuser%40gmail.com",
+    "createdAt": "2026-09-18T09:52:34.054Z",
+    "provider": "password"
   }
 }

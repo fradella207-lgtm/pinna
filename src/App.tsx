@@ -30,7 +30,7 @@ import { Search, SlidersHorizontal, Plus, MapPin, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
-  const { isWelcomeModalOpen, closeWelcomeModal } = useAuth();
+  const { isWelcomeModalOpen, closeWelcomeModal, user } = useAuth();
 
   // Real-time Cloud Firestore integration per user account
   const { 
@@ -41,17 +41,31 @@ export default function App() {
     clearAllPlaces
   } = useUserPlaces();
 
+  const listStorageKey = user ? `spotter_lists_${user.uid}` : "spotter_lists_guest";
+
   const [lists, setLists] = useState<CustomList[]>(() => {
     try {
-      const saved = localStorage.getItem("spotter_lists_v1");
+      const saved = localStorage.getItem(listStorageKey);
       if (saved) return JSON.parse(saved);
-      const oldV3 = localStorage.getItem("spotfinder_lists_v3");
-      if (oldV3) return JSON.parse(oldV3);
     } catch {
       // Ignored
     }
     return INITIAL_LISTS;
   });
+
+  // Re-sync user lists on user switch
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem(listStorageKey);
+      if (saved) {
+        setLists(JSON.parse(saved));
+      } else {
+        setLists(INITIAL_LISTS);
+      }
+    } catch {
+      setLists(INITIAL_LISTS);
+    }
+  }, [listStorageKey]);
 
   // Dock Navigation State: "map" (full screen map) | "places" (list view)
   const [activeDockTab, setActiveDockTab] = useState<DockActiveTab>("map");
