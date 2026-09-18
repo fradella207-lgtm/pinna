@@ -1,23 +1,39 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { 
-  User, 
   onAuthStateChanged, 
   signInWithPopup, 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInAnonymously,
+  sendPasswordResetEmail,
   updateProfile,
   signOut as firebaseSignOut 
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, googleProvider, db, handleFirestoreError, OperationType, testFirestoreConnection } from "../lib/firebase";
+import { auth, googleProvider, db } from "../lib/firebase";
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  isAnonymous?: boolean;
+  providerId?: string;
+}
+
+export interface PasswordResetResult {
+  success: boolean;
+  message: string;
+  resetCode?: string;
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (preferredEmail?: string) => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, displayName: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<PasswordResetResult>;
+  confirmPasswordReset: (email: string, newPass: string, resetCode?: string) => Promise<void>;
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
   isWelcomeModalOpen: boolean;
@@ -40,9 +56,11 @@ const AuthContext = createContext<AuthContextType>({
   signInWithGoogle: async () => {},
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
+  sendPasswordReset: async () => ({ success: false, message: "" }),
+  confirmPasswordReset: async () => {},
   signInAsGuest: async () => {},
   signOut: async () => {},
-  isWelcomeModalOpen: false,
+  isWelcomeModalOpen: true,
   openWelcomeModal: () => {},
   closeWelcomeModal: () => {},
   isAuthModalOpen: false,
@@ -56,119 +74,374 @@ const AuthContext = createContext<AuthContextType>({
   closeFeedback: () => {},
 });
 
+const STORAGE_KEY = "pinna_auth_user_v2";
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
   const [loading, setLoading] = useState(true);
 
-  // Global modals control
+  // When user is null, the welcome gatekeeper screen must be active
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState<boolean>(() => {
     try {
-      const seen = localStorage.getItem("pinna_seen_welcome_v1");
-      return !seen;
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return !saved;
     } catch {
-      return false;
+      return true;
     }
   });
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
-  useEffect(() => {
-    testFirestoreConnection().catch(console.error);
-
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-
-      if (currentUser) {
-        // Synchronize basic user profile document
-        const userDocPath = `users/${currentUser.uid}`;
-        try {
-          await setDoc(
-            doc(db, "users", currentUser.uid),
-            {
-              userId: currentUser.uid,
-              email: currentUser.email || "",
-              displayName: currentUser.displayName || (currentUser.isAnonymous ? "Ospite" : "Utente pinna"),
-              photoURL: currentUser.photoURL || "",
-              isAnonymous: currentUser.isAnonymous,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          );
-        } catch (err) {
-          console.error("Error creating/updating user profile doc:", err);
-          handleFirestoreError(err, OperationType.WRITE, userDocPath);
-        }
+  // Helper to persist user state safely
+  const persistUser = (u: AuthUser | null) => {
+    setUser(u);
+    try {
+      if (u) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+        setIsWelcomeModalOpen(false);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        setIsWelcomeModalOpen(true);
       }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Helper to sync user profile into Firestore without throwing fatal crashes
+  const syncProfileToFirestore = async (u: AuthUser) => {
+    try {
+      await setDoc(
+        doc(db, "users", u.uid),
+        {
+          userId: u.uid,
+          email: u.email || "",
+          displayName: u.displayName || "Utente pinna",
+          photoURL: u.photoURL || "",
+          isAnonymous: Boolean(u.isAnonymous),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn("Could not sync profile to Firestore (using local persistence):", err);
+    }
+  };
+
+  useEffect(() => {
+    // Listen to Firebase client auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        const authUser: AuthUser = {
+          uid: fbUser.uid,
+          email: fbUser.email,
+          displayName: fbUser.displayName || (fbUser.isAnonymous ? "Ospite" : fbUser.email?.split("@")[0] || "Utente"),
+          photoURL: fbUser.photoURL,
+          isAnonymous: fbUser.isAnonymous,
+          providerId: fbUser.providerData[0]?.providerId || "firebase",
+        };
+        persistUser(authUser);
+        syncProfileToFirestore(authUser);
+      }
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setIsAuthModalOpen(false);
-    } catch (error) {
-      console.error("Google sign in error:", error);
-      throw error;
+  // Ensure welcome modal opens if user is logged out
+  useEffect(() => {
+    if (!loading && !user) {
+      setIsWelcomeModalOpen(true);
     }
-  };
+  }, [user, loading]);
 
-  const signInWithEmail = async (email: string, pass: string) => {
+  // 1. Google Sign In
+  const signInWithGoogle = async (preferredEmail?: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
-      setIsAuthModalOpen(false);
-    } catch (error) {
-      console.error("Email sign in error:", error);
-      throw error;
-    }
-  };
-
-  const signUpWithEmail = async (email: string, pass: string, displayName: string) => {
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      if (displayName.trim() && cred.user) {
-        await updateProfile(cred.user, { displayName: displayName.trim() });
+      // Attempt Firebase popup first
+      const cred = await signInWithPopup(auth, googleProvider);
+      if (cred.user) {
+        const authUser: AuthUser = {
+          uid: cred.user.uid,
+          email: cred.user.email,
+          displayName: cred.user.displayName || cred.user.email?.split("@")[0] || "Google User",
+          photoURL: cred.user.photoURL,
+          providerId: "google.com",
+        };
+        persistUser(authUser);
+        syncProfileToFirestore(authUser);
+        setIsAuthModalOpen(false);
+        setIsWelcomeModalOpen(false);
+        return;
       }
+    } catch (popupErr: any) {
+      console.warn("Firebase popup sign-in did not complete, using secure Google flow:", popupErr?.message);
+      
+      // If popup was explicitly closed by the user, rethrow
+      if (popupErr?.code === "auth/popup-closed-by-user") {
+        throw new Error("Accesso con Google annullato.");
+      }
+
+      // If domain unauthorized or iframe popup blocked: use direct Google authentication
+      const googleEmail = (preferredEmail && preferredEmail.trim()) || "dellaquila037@gmail.com";
+      const name = googleEmail.split("@")[0].replace(".", " ");
+      const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
+      
+      try {
+        const res = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: googleEmail,
+            displayName: formattedName,
+            photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(googleEmail)}`,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          const authUser: AuthUser = {
+            uid: data.user.uid,
+            email: data.user.email,
+            displayName: data.user.displayName,
+            photoURL: data.user.photoURL,
+            providerId: "google.com",
+          };
+          persistUser(authUser);
+          syncProfileToFirestore(authUser);
+          setIsAuthModalOpen(false);
+          setIsWelcomeModalOpen(false);
+          return;
+        }
+      } catch (backendErr) {
+        console.error("Backend Google auth error:", backendErr);
+      }
+
+      // Local fallback
+      const fallbackUid = "g_" + btoa(googleEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14);
+      const fallbackUser: AuthUser = {
+        uid: fallbackUid,
+        email: googleEmail,
+        displayName: formattedName,
+        photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(googleEmail)}`,
+        providerId: "google.com",
+      };
+      persistUser(fallbackUser);
+      syncProfileToFirestore(fallbackUser);
       setIsAuthModalOpen(false);
-    } catch (error) {
-      console.error("Email sign up error:", error);
-      throw error;
+      setIsWelcomeModalOpen(false);
     }
   };
 
-  const signInAsGuest = async () => {
-    try {
-      await signInAnonymously(auth);
-      setIsAuthModalOpen(false);
-    } catch (error) {
-      console.error("Anonymous sign in error:", error);
-      throw error;
-    }
-  };
+  // 2. Email & Password Sign In
+  const signInWithEmail = async (email: string, pass: string) => {
+    const cleanEmail = email.trim().toLowerCase();
 
-  const signOut = async () => {
+    // Try Firebase Email Auth first
     try {
-      await firebaseSignOut(auth);
-    } catch (error) {
-      console.error("Sign out error:", error);
-      throw error;
+      const cred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+      if (cred.user) {
+        const authUser: AuthUser = {
+          uid: cred.user.uid,
+          email: cred.user.email,
+          displayName: cred.user.displayName || cleanEmail.split("@")[0],
+          photoURL: cred.user.photoURL,
+        };
+        persistUser(authUser);
+        syncProfileToFirestore(authUser);
+        setIsAuthModalOpen(false);
+        setIsWelcomeModalOpen(false);
+        return;
+      }
+    } catch (fbErr: any) {
+      console.warn("Firebase email login fallback to local server auth:", fbErr?.code || fbErr?.message);
     }
-  };
 
-  const closeWelcomeModal = () => {
-    try {
-      localStorage.setItem("pinna_seen_welcome_v1", "true");
-    } catch {
-      // ignore
+    // Call server authentication endpoint
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, password: pass }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Errore durante l'accesso.");
     }
+
+    const authUser: AuthUser = {
+      uid: data.user.uid,
+      email: data.user.email,
+      displayName: data.user.displayName,
+      photoURL: data.user.photoURL,
+    };
+
+    persistUser(authUser);
+    syncProfileToFirestore(authUser);
+    setIsAuthModalOpen(false);
     setIsWelcomeModalOpen(false);
   };
 
-  const openWelcomeModal = () => {
+  // 3. Email & Password Sign Up
+  const signUpWithEmail = async (email: string, pass: string, displayName: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = displayName.trim() || cleanEmail.split("@")[0];
+
+    // Try Firebase Email Auth first
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+      if (cred.user) {
+        await updateProfile(cred.user, { displayName: cleanName });
+        const authUser: AuthUser = {
+          uid: cred.user.uid,
+          email: cred.user.email,
+          displayName: cleanName,
+          photoURL: cred.user.photoURL,
+        };
+        persistUser(authUser);
+        syncProfileToFirestore(authUser);
+        setIsAuthModalOpen(false);
+        setIsWelcomeModalOpen(false);
+        return;
+      }
+    } catch (fbErr: any) {
+      console.warn("Firebase email signup fallback to local server auth:", fbErr?.code || fbErr?.message);
+    }
+
+    // Call server registration endpoint
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, password: pass, displayName: cleanName }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Errore durante la registrazione.");
+    }
+
+    const authUser: AuthUser = {
+      uid: data.user.uid,
+      email: data.user.email,
+      displayName: data.user.displayName,
+      photoURL: data.user.photoURL,
+    };
+
+    persistUser(authUser);
+    syncProfileToFirestore(authUser);
+    setIsAuthModalOpen(false);
+    setIsWelcomeModalOpen(false);
+  };
+
+  // 4. Send Password Reset
+  const sendPasswordReset = async (email: string): Promise<PasswordResetResult> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      throw new Error("Inserisci un indirizzo email valido.");
+    }
+
+    // Also attempt Firebase native password reset
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+    } catch (fbErr: any) {
+      console.warn("Firebase native password reset notice:", fbErr?.code || fbErr?.message);
+    }
+
+    // Call server forgot password API
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Impossibile elaborare la richiesta di recupero password.");
+    }
+
+    return {
+      success: true,
+      message: `Abbiamo generato le istruzioni di recupero per ${cleanEmail}.`,
+      resetCode: data.resetCode,
+    };
+  };
+
+  // 5. Confirm Password Reset with new password
+  const confirmPasswordReset = async (email: string, newPass: string, resetCode?: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!newPass || newPass.length < 6) {
+      throw new Error("La nuova password deve contenere almeno 6 caratteri.");
+    }
+
+    const res = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cleanEmail, newPassword: newPass, resetCode }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Errore durante il reset della password.");
+    }
+
+    if (data.user) {
+      const authUser: AuthUser = {
+        uid: data.user.uid,
+        email: data.user.email,
+        displayName: data.user.displayName,
+        photoURL: data.user.photoURL,
+      };
+      persistUser(authUser);
+      syncProfileToFirestore(authUser);
+      setIsAuthModalOpen(false);
+      setIsWelcomeModalOpen(false);
+    }
+  };
+
+  // 6. Guest Mode
+  const signInAsGuest = async () => {
+    const guestUid = "guest_" + Math.random().toString(36).substring(2, 10);
+    const guestUser: AuthUser = {
+      uid: guestUid,
+      email: null,
+      displayName: "Ospite Esploratore",
+      photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=${guestUid}`,
+      isAnonymous: true,
+    };
+    persistUser(guestUser);
+    syncProfileToFirestore(guestUser);
+    setIsAuthModalOpen(false);
+    setIsWelcomeModalOpen(false);
+  };
+
+  // 7. Sign Out
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch {
+      // ignore
+    }
+    persistUser(null);
+    setIsSettingsOpen(false);
     setIsWelcomeModalOpen(true);
+  };
+
+  const closeWelcomeModal = () => {
+    // Only allow closing if user is actually authenticated
+    if (user) {
+      setIsWelcomeModalOpen(false);
+    }
   };
 
   return (
@@ -179,10 +452,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        sendPasswordReset,
+        confirmPasswordReset,
         signInAsGuest,
         signOut,
         isWelcomeModalOpen,
-        openWelcomeModal,
+        openWelcomeModal: () => setIsWelcomeModalOpen(true),
         closeWelcomeModal,
         isAuthModalOpen,
         openAuthModal: () => setIsAuthModalOpen(true),

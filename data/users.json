@@ -1,0 +1,12 @@
+{
+  "user_936ccff8c1b7f0a4": {
+    "uid": "user_936ccff8c1b7f0a4",
+    "email": "dellaquila037@gmail.com",
+    "displayName": "Michele",
+    "passwordHash": "691864d6b2fae519289c8d183558a2cbcf2479c86ed9023bd3029d51420f3a7d74591dc27b402bdf65f1253944b6570156ccfe9a1ad622495afa66fdd282060f",
+    "salt": "79afd66f1d2ca904d3539b71d3f915d5",
+    "photoURL": "https://api.dicebear.com/7.x/bottts/svg?seed=dellaquila037%40gmail.com",
+    "createdAt": "2026-09-18T08:06:27.918Z",
+    "provider": "password"
+  }
+}

@@ -65,9 +65,12 @@ export function useUserPlaces() {
     // If auth is still loading, wait
     if (authLoading) return;
 
-    // If not logged in, fallback to local storage
+    // Key for local per-user or guest cache
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_v3";
+
+    // If not logged in, load from local storage
     if (!user) {
-      const local = localStorage.getItem("spotter_saved_places_v3");
+      const local = localStorage.getItem(cacheKey);
       if (local) {
         try {
           setPlaces(JSON.parse(local));
@@ -81,6 +84,16 @@ export function useUserPlaces() {
       return;
     }
 
+    // Attempt to load from local cache first for instant render
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        setPlaces(JSON.parse(cached));
+      } catch {
+        // ignore
+      }
+    }
+
     // When logged in, listen to user's personal Firestore subcollection
     const placesPath = `users/${user.uid}/places`;
     const placesColRef = collection(db, "users", user.uid, "places");
@@ -92,6 +105,7 @@ export function useUserPlaces() {
           // If first time this user logs in and collection is empty, seed with initial sample spots
           try {
             const batch = writeBatch(db);
+            const initialList: SavedPlace[] = [];
             INITIAL_PLACES.forEach((place) => {
               const placeDocRef = doc(db, "users", user.uid, "places", place.id);
               const dataToSave = sanitizePlaceForFirestore({
@@ -100,10 +114,15 @@ export function useUserPlaces() {
                 visited: Boolean(place.stato_iniziale?.visitato || place.visited),
               });
               batch.set(placeDocRef, dataToSave);
+              initialList.push(dataToSave as SavedPlace);
             });
             await batch.commit();
+            setPlaces(initialList);
+            localStorage.setItem(cacheKey, JSON.stringify(initialList));
           } catch (err) {
-            handleFirestoreError(err, OperationType.WRITE, placesPath);
+            console.warn("Could not seed initial places to Firestore:", err);
+            setPlaces(INITIAL_PLACES);
+            localStorage.setItem(cacheKey, JSON.stringify(INITIAL_PLACES));
           }
         } else {
           const userPlaces: SavedPlace[] = [];
@@ -114,11 +133,23 @@ export function useUserPlaces() {
             });
           });
           setPlaces(userPlaces);
-          setLoading(false);
+          localStorage.setItem(cacheKey, JSON.stringify(userPlaces));
         }
+        setLoading(false);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, placesPath);
+        console.warn("Firestore snapshot listener notice, using local cache:", error);
+        const local = localStorage.getItem(cacheKey) || localStorage.getItem("spotter_saved_places_v3");
+        if (local) {
+          try {
+            setPlaces(JSON.parse(local));
+          } catch {
+            setPlaces(INITIAL_PLACES);
+          }
+        } else {
+          setPlaces(INITIAL_PLACES);
+        }
+        setLoading(false);
       }
     );
 
@@ -127,17 +158,17 @@ export function useUserPlaces() {
 
   // Add or update place
   const savePlace = async (place: SavedPlace) => {
-    if (!user) {
-      // Local fallback
-      setPlaces((prev) => {
-        const next = [place, ...prev.filter((p) => p.id !== place.id)];
-        localStorage.setItem("spotter_saved_places_v3", JSON.stringify(next));
-        return next;
-      });
-      return;
-    }
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_v3";
 
-    const placePath = `users/${user.uid}/places/${place.id}`;
+    // Optimistically update local state & localStorage
+    setPlaces((prev) => {
+      const next = [place, ...prev.filter((p) => p.id !== place.id)];
+      localStorage.setItem(cacheKey, JSON.stringify(next));
+      return next;
+    });
+
+    if (!user) return;
+
     try {
       const dataToSave = sanitizePlaceForFirestore({
         ...place,
@@ -146,7 +177,7 @@ export function useUserPlaces() {
       });
       await setDoc(doc(db, "users", user.uid, "places", place.id), dataToSave, { merge: true });
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, placePath);
+      console.warn("Could not sync place to Firestore (saved locally):", err);
     }
   };
 
@@ -162,7 +193,6 @@ export function useUserPlaces() {
       stato_iniziale: {
         ...target.stato_iniziale,
         visitato: nextVisited,
-        voto_personale: target.stato_iniziale?.voto_personale || 0,
       },
     };
 
@@ -171,35 +201,35 @@ export function useUserPlaces() {
 
   // Delete place
   const removePlace = async (placeId: string) => {
-    if (!user) {
-      setPlaces((prev) => {
-        const next = prev.filter((p) => p.id !== placeId);
-        localStorage.setItem("spotter_saved_places_v3", JSON.stringify(next));
-        return next;
-      });
-      return;
-    }
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_v3";
 
-    const placePath = `users/${user.uid}/places/${placeId}`;
+    setPlaces((prev) => {
+      const next = prev.filter((p) => p.id !== placeId);
+      localStorage.setItem(cacheKey, JSON.stringify(next));
+      return next;
+    });
+
+    if (!user) return;
+
     try {
       await deleteDoc(doc(db, "users", user.uid, "places", placeId));
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, placePath);
+      console.warn("Could not delete place from Firestore (deleted locally):", err);
     }
   };
 
-  // Clear / Reset all user places (per-user or local)
+  // Clear / Reset all user places
   const clearAllPlaces = async () => {
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_v3";
+    localStorage.removeItem(cacheKey);
     localStorage.removeItem("spotter_saved_places_v3");
     localStorage.removeItem("spotter_saved_places_v2");
     localStorage.removeItem("spotter_lists_v1");
 
-    if (!user) {
-      setPlaces([]);
-      return;
-    }
+    setPlaces([]);
 
-    const placesPath = `users/${user.uid}/places`;
+    if (!user) return;
+
     try {
       const placesColRef = collection(db, "users", user.uid, "places");
       const snap = await getDocs(placesColRef);
@@ -208,9 +238,8 @@ export function useUserPlaces() {
         snap.forEach((d) => batch.delete(d.ref));
         await batch.commit();
       }
-      setPlaces([]);
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, placesPath);
+      console.warn("Could not batch delete from Firestore:", err);
     }
   };
 
