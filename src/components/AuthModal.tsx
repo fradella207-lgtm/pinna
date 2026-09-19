@@ -29,9 +29,9 @@ export const AuthModal: React.FC = () => {
 
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
 
-  // Clean form states - absolutely NO hardcoded accounts
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  // Email di riferimento impostata su my360garage@gmail.com
+  const [email, setEmail] = useState("my360garage@gmail.com");
+  const [displayName, setDisplayName] = useState("My360Garage");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 

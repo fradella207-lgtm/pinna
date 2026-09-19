@@ -43,9 +43,9 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [taglineIndex, setTaglineIndex] = useState(0);
 
-  // Form states - completely clean, NO hardcoded or default accounts!
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  // Form states - email di riferimento impostata su my360garage@gmail.com
+  const [email, setEmail] = useState("my360garage@gmail.com");
+  const [displayName, setDisplayName] = useState("My360Garage");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
