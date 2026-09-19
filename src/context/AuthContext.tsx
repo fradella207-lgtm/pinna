@@ -8,7 +8,16 @@ import {
   updateProfile,
   signOut as firebaseSignOut 
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc,
+  setDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
 import { auth, googleProvider, db } from "../lib/firebase";
 
 export interface AuthUser {
@@ -29,7 +38,9 @@ export interface PasswordResetResult {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
+  signInWithEmailInstant: (email: string, displayName?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  handleGoogleCredentialResponse: (credential: string) => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, displayName: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<PasswordResetResult>;
@@ -53,7 +64,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  signInWithEmailInstant: async () => {},
   signInWithGoogle: async () => {},
+  handleGoogleCredentialResponse: async () => {},
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
   sendPasswordReset: async () => ({ success: false, message: "" }),
@@ -74,13 +87,56 @@ const AuthContext = createContext<AuthContextType>({
   closeFeedback: () => {},
 });
 
-const STORAGE_KEY = "pinna_auth_user_v2";
+const STORAGE_KEY = "pinna_auth_session_v3";
+
+// Cryptographic hash for client-side password verification
+async function sha256(str: string): Promise<string> {
+  const enc = new TextEncoder();
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", enc.encode(str));
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Decode Google Identity Services JWT payload safely
+function parseGoogleJwt(token: string) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error("Failed to parse Google JWT", e);
+    return null;
+  }
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
+      // Purge legacy test keys
+      localStorage.removeItem("pinna_auth_user");
+      localStorage.removeItem("pinna_auth_user_v2");
+
+      // If user explicitly signed out, do NOT auto login
+      if (localStorage.getItem("pinna_explicitly_logged_out") === "true") {
+        return null;
+      }
+
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Ensure no leftover hardcoded developer email automatically logs in
+        if (parsed?.email === "dellaquila037@gmail.com") {
+          localStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
+        return parsed;
+      }
     } catch {
       // ignore
     }
@@ -92,6 +148,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // When user is null, the welcome gatekeeper screen must be active
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState<boolean>(() => {
     try {
+      if (localStorage.getItem("pinna_explicitly_logged_out") === "true") {
+        return true;
+      }
       const saved = localStorage.getItem(STORAGE_KEY);
       return !saved;
     } catch {
@@ -108,6 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(u);
     try {
       if (u) {
+        localStorage.removeItem("pinna_explicitly_logged_out");
         localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
         setIsWelcomeModalOpen(false);
       } else {
@@ -142,22 +202,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Listen to Firebase client auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        // If there's an existing manual user in local storage with a different email, preserve it
-        try {
-          const saved = localStorage.getItem(STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed && parsed.email && fbUser.email && parsed.email.toLowerCase() !== fbUser.email.toLowerCase()) {
-              console.log("Preserving active custom user session:", parsed.email);
-              setLoading(false);
-              return;
-            }
-          }
-        } catch {
-          // ignore
-        }
+      // Respect explicit logout
+      if (localStorage.getItem("pinna_explicitly_logged_out") === "true") {
+        setLoading(false);
+        return;
+      }
 
+      // If developer test account was previously cached in Firebase IndexedDB, sign it out once
+      if (fbUser?.email === "dellaquila037@gmail.com" && localStorage.getItem("pinna_purged_dev_email") !== "true") {
+        localStorage.setItem("pinna_purged_dev_email", "true");
+        try { await firebaseSignOut(auth); } catch {}
+        setLoading(false);
+        return;
+      }
+
+      if (fbUser) {
         const authUser: AuthUser = {
           uid: fbUser.uid,
           email: fbUser.email,
@@ -182,9 +241,173 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, loading]);
 
-  // 1. Google Sign In via standard Google popup (accounts of the computer)
+  // Handle Google credential returned by Google Identity Services official native button
+  const handleGoogleCredentialResponse = async (credential: string) => {
+    const payload = parseGoogleJwt(credential);
+    if (!payload || !payload.email) {
+      throw new Error("Dati account Google non validi.");
+    }
+
+    const cleanEmail = payload.email.trim().toLowerCase();
+    const authUser: AuthUser = {
+      uid: "g_" + (payload.sub || btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
+      email: cleanEmail,
+      displayName: payload.name || cleanEmail.split("@")[0],
+      photoURL: payload.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
+      providerId: "google.com",
+    };
+
+    localStorage.removeItem("pinna_explicitly_logged_out");
+    persistUser(authUser);
+    syncProfileToFirestore(authUser);
+
+    try {
+      await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: authUser.email,
+          displayName: authUser.displayName,
+          photoURL: authUser.photoURL,
+        }),
+      });
+    } catch {}
+
+    setIsAuthModalOpen(false);
+    setIsWelcomeModalOpen(false);
+  };
+
+  // 1. Ultra-simple, instant, zero-popup email sign-in (no popups, creates account if new, loads spots if existing)
+  const signInWithEmailInstant = async (email: string, displayName?: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      throw new Error("Inserisci un indirizzo email valido.");
+    }
+
+    // Deterministic UID from email hash so spots are permanently tied to this user across all devices/sessions
+    const emailHash = await sha256(cleanEmail);
+    const uid = "usr_" + emailHash.substring(0, 16);
+
+    const rawPrefix = cleanEmail.split("@")[0].replace(/[._-]/g, " ");
+    const defaultName = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
+    const chosenName = displayName?.trim() || defaultName;
+    const defaultAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`;
+
+    let finalName = chosenName;
+    let finalAvatar = defaultAvatar;
+
+    try {
+      const userDocRef = doc(db, "users", uid);
+      const snap = await getDoc(userDocRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.displayName) finalName = data.displayName;
+        if (data.photoURL) finalAvatar = data.photoURL;
+      }
+    } catch (e) {
+      console.warn("Firestore profile lookup notice:", e);
+    }
+
+    const authUser: AuthUser = {
+      uid,
+      email: cleanEmail,
+      displayName: finalName,
+      photoURL: finalAvatar,
+      providerId: "email_direct",
+    };
+
+    localStorage.removeItem("pinna_explicitly_logged_out");
+    persistUser(authUser);
+    await syncProfileToFirestore(authUser);
+
+    try {
+      await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          displayName: finalName,
+          photoURL: finalAvatar,
+        }),
+      });
+    } catch {}
+
+    setIsAuthModalOpen(false);
+    setIsWelcomeModalOpen(false);
+  };
+
+  // Google Sign In via standard popup or GSI token client
   const signInWithGoogle = async () => {
-    // Attempt standard Firebase signInWithPopup first
+    const google = (window as any).google;
+
+    // 1. If GSI Token Client is available, run synchronously to prevent popup blocker
+    const gsi = google?.accounts?.oauth2;
+    if (gsi) {
+      return new Promise<void>((resolve, reject) => {
+        try {
+          const client = gsi.initTokenClient({
+            client_id: "377912341406-b26rn1juct1vd7ajatoha2cqjk2njmqd.apps.googleusercontent.com",
+            scope: "email profile openid",
+            callback: async (tokenResponse: any) => {
+              if (tokenResponse?.error) {
+                if (tokenResponse.error === "access_denied") {
+                  reject(new Error("Accesso Google annullato."));
+                } else {
+                  reject(new Error(tokenResponse.error_description || tokenResponse.error));
+                }
+                return;
+              }
+              if (tokenResponse?.access_token) {
+                try {
+                  const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                  });
+                  const profile = await userInfoRes.json();
+                  if (profile?.email) {
+                    const cleanEmail = profile.email.trim().toLowerCase();
+                    const authUser: AuthUser = {
+                      uid: "g_" + (profile.sub || btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
+                      email: cleanEmail,
+                      displayName: profile.name || cleanEmail.split("@")[0],
+                      photoURL: profile.picture || null,
+                      providerId: "google.com",
+                    };
+                    localStorage.removeItem("pinna_explicitly_logged_out");
+                    persistUser(authUser);
+                    syncProfileToFirestore(authUser);
+                    try {
+                      await fetch("/api/auth/google", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          email: authUser.email,
+                          displayName: authUser.displayName,
+                          photoURL: authUser.photoURL,
+                        }),
+                      });
+                    } catch {}
+                    setIsAuthModalOpen(false);
+                    setIsWelcomeModalOpen(false);
+                    resolve();
+                    return;
+                  }
+                } catch (e) {
+                  reject(e);
+                  return;
+                }
+              }
+              reject(new Error("Nessun account selezionato da Google."));
+            },
+          });
+          // prompt: "select_account" allows selecting any account on the computer
+          client.requestAccessToken({ prompt: "select_account" });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    // 2. Fallback to Firebase signInWithPopup
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       if (cred.user) {
@@ -195,107 +418,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           photoURL: cred.user.photoURL || null,
           providerId: "google.com",
         };
+        localStorage.removeItem("pinna_explicitly_logged_out");
         persistUser(authUser);
         syncProfileToFirestore(authUser);
-        try {
-          await fetch("/api/auth/google", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: authUser.email,
-              displayName: authUser.displayName,
-              photoURL: authUser.photoURL,
-            }),
-          });
-        } catch {}
         setIsAuthModalOpen(false);
         setIsWelcomeModalOpen(false);
-        return;
       }
     } catch (popupErr: any) {
-      console.warn("Firebase signInWithPopup error:", popupErr);
-
       if (
         popupErr?.code === "auth/popup-closed-by-user" || 
         popupErr?.code === "auth/cancelled-popup-request"
       ) {
         throw new Error("Accesso Google annullato.");
       }
-
-      // Fallback to Google Identity Services (GSI) native popup if available
-      const gsi = (window as any).google?.accounts?.oauth2;
-      if (gsi) {
-        await new Promise<void>((resolve, reject) => {
-          try {
-            const client = gsi.initTokenClient({
-              client_id: "377912341406-b26rn1juct1vd7ajatoha2cqjk2njmqd.apps.googleusercontent.com",
-              scope: "email profile openid",
-              callback: async (tokenResponse: any) => {
-                if (tokenResponse?.error) {
-                  if (tokenResponse.error === "access_denied") {
-                    reject(new Error("Accesso Google annullato."));
-                  } else {
-                    reject(new Error(tokenResponse.error_description || tokenResponse.error));
-                  }
-                  return;
-                }
-                if (tokenResponse?.access_token) {
-                  try {
-                    const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-                      headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-                    });
-                    const profile = await userInfoRes.json();
-                    if (profile?.email) {
-                      const authUser: AuthUser = {
-                        uid: "g_" + (profile.sub || btoa(profile.email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
-                        email: profile.email,
-                        displayName: profile.name || profile.email.split("@")[0],
-                        photoURL: profile.picture || null,
-                        providerId: "google.com",
-                      };
-                      persistUser(authUser);
-                      syncProfileToFirestore(authUser);
-                      try {
-                        await fetch("/api/auth/google", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            email: authUser.email,
-                            displayName: authUser.displayName,
-                            photoURL: authUser.photoURL,
-                          }),
-                        });
-                      } catch {}
-                      setIsAuthModalOpen(false);
-                      setIsWelcomeModalOpen(false);
-                      resolve();
-                      return;
-                    }
-                  } catch (e) {
-                    reject(e);
-                    return;
-                  }
-                }
-                reject(new Error("Nessun token ricevuto da Google"));
-              },
-            });
-            client.requestAccessToken({ prompt: "select_account" });
-          } catch (err) {
-            reject(err);
-          }
-        });
-        return;
-      }
-
-      throw popupErr;
+      throw new Error("Popup Google non disponibile. Usa il pulsante Google sottostante o accedi con email.");
     }
   };
 
   // 2. Email & Password Sign In
   const signInWithEmail = async (email: string, pass: string) => {
     const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      throw new Error("Inserisci un indirizzo email valido.");
+    }
 
-    // Try Firebase Email Auth first
+    // A. Check Firestore directly (works on Vercel and all hosts)
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const userData = snap.docs[0].data();
+        if (userData.passwordHash && userData.salt) {
+          const computedHash = await sha256(pass + userData.salt);
+          if (computedHash === userData.passwordHash) {
+            const authUser: AuthUser = {
+              uid: snap.docs[0].id,
+              email: userData.email || cleanEmail,
+              displayName: userData.displayName || cleanEmail.split("@")[0],
+              photoURL: userData.photoURL || null,
+              providerId: "password",
+            };
+            localStorage.removeItem("pinna_explicitly_logged_out");
+            persistUser(authUser);
+            setIsAuthModalOpen(false);
+            setIsWelcomeModalOpen(false);
+            return;
+          } else {
+            throw new Error("Password non corretta. Verifica e riprova.");
+          }
+        }
+      }
+    } catch (fsErr: any) {
+      if (fsErr.message?.includes("Password non corretta")) throw fsErr;
+      console.warn("Firestore signin notice:", fsErr);
+    }
+
+    // B. Check server endpoint if running
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, password: pass }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          const authUser: AuthUser = {
+            uid: data.user.uid,
+            email: data.user.email,
+            displayName: data.user.displayName,
+            photoURL: data.user.photoURL,
+            providerId: "password",
+          };
+          localStorage.removeItem("pinna_explicitly_logged_out");
+          persistUser(authUser);
+          syncProfileToFirestore(authUser);
+          setIsAuthModalOpen(false);
+          setIsWelcomeModalOpen(false);
+          return;
+        }
+      }
+    } catch {}
+
+    // C. Try Firebase auth if enabled
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       if (cred.user) {
@@ -304,7 +510,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: cred.user.email,
           displayName: cred.user.displayName || cleanEmail.split("@")[0],
           photoURL: cred.user.photoURL,
+          providerId: "password",
         };
+        localStorage.removeItem("pinna_explicitly_logged_out");
         persistUser(authUser);
         syncProfileToFirestore(authUser);
         setIsAuthModalOpen(false);
@@ -312,32 +520,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
     } catch (fbErr: any) {
-      console.warn("Firebase email login fallback to local server auth:", fbErr?.code || fbErr?.message);
+      if (fbErr.code === "auth/wrong-password") {
+        throw new Error("Password non corretta.");
+      }
     }
 
-    // Call server authentication endpoint
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail, password: pass }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Errore durante l'accesso.");
-    }
-
-    const authUser: AuthUser = {
-      uid: data.user.uid,
-      email: data.user.email,
-      displayName: data.user.displayName,
-      photoURL: data.user.photoURL,
-    };
-
-    persistUser(authUser);
-    syncProfileToFirestore(authUser);
-    setIsAuthModalOpen(false);
-    setIsWelcomeModalOpen(false);
+    throw new Error("Nessun account trovato con questa email. Clicca su 'Crea Account' per registrarti.");
   };
 
   // 3. Email & Password Sign Up
@@ -345,48 +533,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = displayName.trim() || cleanEmail.split("@")[0];
 
-    // Try Firebase Email Auth first
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      throw new Error("Inserisci un indirizzo email valido.");
+    }
+    if (!pass || pass.length < 6) {
+      throw new Error("La password deve contenere almeno 6 caratteri.");
+    }
+
+    // Check if user already exists in Firestore
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        throw new Error("Email già registrata! Clicca su 'Accedi' per entrare con la tua password.");
+      }
+    } catch (checkErr: any) {
+      if (checkErr.message?.includes("già registrata")) throw checkErr;
+      console.warn("Firestore check warning:", checkErr);
+    }
+
+    // Compute secure client-side hash
+    const salt = Math.random().toString(36).substring(2, 12);
+    const passwordHash = await sha256(pass + salt);
+    const uid = "usr_" + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    const photoURL = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}`;
+
+    const authUser: AuthUser = {
+      uid,
+      email: cleanEmail,
+      displayName: cleanName,
+      photoURL,
+      providerId: "password",
+    };
+
+    // Save profile and credentials directly to Firestore
+    try {
+      await setDoc(doc(db, "users", uid), {
+        userId: uid,
+        email: cleanEmail,
+        displayName: cleanName,
+        passwordHash,
+        salt,
+        photoURL,
+        provider: "password",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (fsErr) {
+      console.warn("Firestore direct user save warning:", fsErr);
+    }
+
+    // Also attempt server-side registration (silently ignores 404 if on static host like Vercel)
+    try {
+      await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, password: pass, displayName: cleanName }),
+      });
+    } catch {}
+
+    // Also attempt Firebase registration if enabled
     try {
       const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
       if (cred.user) {
         await updateProfile(cred.user, { displayName: cleanName });
-        const authUser: AuthUser = {
-          uid: cred.user.uid,
-          email: cred.user.email,
-          displayName: cleanName,
-          photoURL: cred.user.photoURL,
-        };
-        persistUser(authUser);
-        syncProfileToFirestore(authUser);
-        setIsAuthModalOpen(false);
-        setIsWelcomeModalOpen(false);
-        return;
       }
-    } catch (fbErr: any) {
-      console.warn("Firebase email signup fallback to local server auth:", fbErr?.code || fbErr?.message);
-    }
+    } catch {}
 
-    // Call server registration endpoint
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail, password: pass, displayName: cleanName }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Errore durante la registrazione.");
-    }
-
-    const authUser: AuthUser = {
-      uid: data.user.uid,
-      email: data.user.email,
-      displayName: data.user.displayName,
-      photoURL: data.user.photoURL,
-    };
-
+    localStorage.removeItem("pinna_explicitly_logged_out");
     persistUser(authUser);
-    syncProfileToFirestore(authUser);
     setIsAuthModalOpen(false);
     setIsWelcomeModalOpen(false);
   };
@@ -398,29 +614,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("Inserisci un indirizzo email valido.");
     }
 
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store reset code in Firestore if possible
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const userDoc = snap.docs[0];
+        await setDoc(doc(db, "users", userDoc.id), {
+          resetCode,
+          resetExpiresAt: Date.now() + 15 * 60 * 1000,
+        }, { merge: true });
+      }
+    } catch {}
+
     // Also attempt Firebase native password reset
     try {
       await sendPasswordResetEmail(auth, cleanEmail);
-    } catch (fbErr: any) {
-      console.warn("Firebase native password reset notice:", fbErr?.code || fbErr?.message);
-    }
+    } catch {}
 
-    // Call server forgot password API
-    const res = await fetch("/api/auth/forgot-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail }),
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Impossibile elaborare la richiesta di recupero password.");
-    }
+    // Call server forgot password API if available
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+    } catch {}
 
     return {
       success: true,
-      message: `Abbiamo generato le istruzioni di recupero per ${cleanEmail}.`,
-      resetCode: data.resetCode,
+      message: `Codice di recupero generato per ${cleanEmail}: ${resetCode}`,
+      resetCode,
     };
   };
 
@@ -431,28 +658,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("La nuova password deve contenere almeno 6 caratteri.");
     }
 
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail, newPassword: newPass, resetCode }),
-    });
+    let updated = false;
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Errore durante il reset della password.");
+    // Update in Firestore directly
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const userDoc = snap.docs[0];
+        const salt = Math.random().toString(36).substring(2, 12);
+        const passwordHash = await sha256(newPass + salt);
+        await setDoc(doc(db, "users", userDoc.id), {
+          passwordHash,
+          salt,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        updated = true;
+
+        const authUser: AuthUser = {
+          uid: userDoc.id,
+          email: cleanEmail,
+          displayName: userDoc.data().displayName || cleanEmail.split("@")[0],
+          photoURL: userDoc.data().photoURL || null,
+          providerId: "password",
+        };
+        localStorage.removeItem("pinna_explicitly_logged_out");
+        persistUser(authUser);
+        setIsAuthModalOpen(false);
+        setIsWelcomeModalOpen(false);
+      }
+    } catch (fsErr) {
+      console.warn("Firestore password reset error:", fsErr);
     }
 
-    if (data.user) {
-      const authUser: AuthUser = {
-        uid: data.user.uid,
-        email: data.user.email,
-        displayName: data.user.displayName,
-        photoURL: data.user.photoURL,
-      };
-      persistUser(authUser);
-      syncProfileToFirestore(authUser);
-      setIsAuthModalOpen(false);
-      setIsWelcomeModalOpen(false);
+    // Also update server if available
+    try {
+      await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, newPassword: newPass, resetCode }),
+      });
+    } catch {}
+
+    if (!updated) {
+      throw new Error("Impossibile reimpostare la password. Verifica l'email e riprova.");
     }
   };
 
@@ -466,6 +716,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=${guestUid}`,
       isAnonymous: true,
     };
+    localStorage.removeItem("pinna_explicitly_logged_out");
     persistUser(guestUser);
     syncProfileToFirestore(guestUser);
     setIsAuthModalOpen(false);
@@ -474,18 +725,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 7. Sign Out
   const signOut = async () => {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("pinna_auth_user");
+    localStorage.removeItem("pinna_auth_user_v2");
+    localStorage.setItem("pinna_explicitly_logged_out", "true");
+    sessionStorage.clear();
     try {
       await firebaseSignOut(auth);
     } catch {
       // ignore
     }
-    persistUser(null);
+    setUser(null);
     setIsSettingsOpen(false);
     setIsWelcomeModalOpen(true);
   };
 
   const closeWelcomeModal = () => {
-    // Only allow closing if user is actually authenticated
     if (user) {
       setIsWelcomeModalOpen(false);
     }
@@ -496,7 +751,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
+        signInWithEmailInstant,
         signInWithGoogle,
+        handleGoogleCredentialResponse,
         signInWithEmail,
         signUpWithEmail,
         sendPasswordReset,
