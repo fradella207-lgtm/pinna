@@ -337,90 +337,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Google Sign In via standard popup or GSI token client
+  // Google Sign In via standard Firebase Auth popup
   const signInWithGoogle = async () => {
-    const google = (window as any).google;
-
-    // 1. If GSI Token Client is available, run synchronously to prevent popup blocker
-    const gsi = google?.accounts?.oauth2;
-    if (gsi) {
-      return new Promise<void>((resolve, reject) => {
-        try {
-          const client = gsi.initTokenClient({
-            client_id: "377912341406-b26rn1juct1vd7ajatoha2cqjk2njmqd.apps.googleusercontent.com",
-            scope: "email profile openid",
-            callback: async (tokenResponse: any) => {
-              if (tokenResponse?.error) {
-                if (tokenResponse.error === "access_denied") {
-                  reject(new Error("Accesso Google annullato."));
-                } else {
-                  reject(new Error(tokenResponse.error_description || tokenResponse.error));
-                }
-                return;
-              }
-              if (tokenResponse?.access_token) {
-                try {
-                  const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-                  });
-                  const profile = await userInfoRes.json();
-                  if (profile?.email) {
-                    const cleanEmail = profile.email.trim().toLowerCase();
-                    const authUser: AuthUser = {
-                      uid: "g_" + (profile.sub || btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
-                      email: cleanEmail,
-                      displayName: profile.name || cleanEmail.split("@")[0],
-                      photoURL: profile.picture || null,
-                      providerId: "google.com",
-                    };
-                    localStorage.removeItem("pinna_explicitly_logged_out");
-                    persistUser(authUser);
-                    syncProfileToFirestore(authUser);
-                    try {
-                      await fetch("/api/auth/google", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          email: authUser.email,
-                          displayName: authUser.displayName,
-                          photoURL: authUser.photoURL,
-                        }),
-                      });
-                    } catch {}
-                    setIsAuthModalOpen(false);
-                    setIsWelcomeModalOpen(false);
-                    resolve();
-                    return;
-                  }
-                } catch (e) {
-                  reject(e);
-                  return;
-                }
-              }
-              reject(new Error("Nessun account selezionato da Google."));
-            },
-          });
-          // prompt: "select_account" allows selecting any account on the computer
-          client.requestAccessToken({ prompt: "select_account" });
-        } catch (err) {
-          reject(err);
-        }
-      });
-    }
-
-    // 2. Fallback to Firebase signInWithPopup
     try {
       const cred = await signInWithPopup(auth, googleProvider);
-      if (cred.user) {
+      if (cred?.user) {
+        const u = cred.user;
         const authUser: AuthUser = {
-          uid: cred.user.uid,
-          email: cred.user.email || "",
-          displayName: cred.user.displayName || (cred.user.email ? cred.user.email.split("@")[0] : "Utente Google"),
-          photoURL: cred.user.photoURL || null,
+          uid: u.uid,
+          email: u.email || "",
+          displayName: u.displayName || (u.email ? u.email.split("@")[0] : "Utente Google"),
+          photoURL: u.photoURL || null,
           providerId: "google.com",
         };
         localStorage.removeItem("pinna_explicitly_logged_out");
         persistUser(authUser);
-        syncProfileToFirestore(authUser);
+        await syncProfileToFirestore(authUser);
         setIsAuthModalOpen(false);
         setIsWelcomeModalOpen(false);
       }
@@ -429,9 +361,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         popupErr?.code === "auth/popup-closed-by-user" || 
         popupErr?.code === "auth/cancelled-popup-request"
       ) {
-        throw new Error("Accesso Google annullato.");
+        throw new Error("Accesso con Google annullato.");
       }
-      throw new Error("Popup Google non disponibile. Usa il pulsante Google sottostante o accedi con email.");
+      if (popupErr?.code === "auth/unauthorized-domain") {
+        throw new Error("Il dominio attuale non è ancora registrato su Firebase Auth. Puoi entrare inserendo la tua email nel campo sottostante!");
+      }
+      throw new Error(popupErr?.message || "Impossibile completare l'accesso con Google.");
     }
   };
 

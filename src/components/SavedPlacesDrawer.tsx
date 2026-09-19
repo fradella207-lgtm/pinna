@@ -53,6 +53,8 @@ interface SavedPlacesDrawerProps {
   onSelectRegion: (reg: string) => void;
   activeProvince: string;
   onSelectProvince: (prov: string) => void;
+  onClearAllPlaces?: () => void;
+  onSeedSamplePlaces?: () => void;
 }
 
 export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
@@ -75,10 +77,13 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
   onSelectRegion,
   activeProvince,
   onSelectProvince,
+  onClearAllPlaces,
+  onSeedSamplePlaces,
 }) => {
   // Main view segment: "to_visit" (colored) vs "visited" (gray/desaturated)
   const [visitedTab, setVisitedTab] = useState<"to_visit" | "visited">("to_visit");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   // Dynamic calculation of inserted countries across all user places
@@ -149,9 +154,20 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
             <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               I Miei Luoghi
             </h1>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              {allPlaces.length} salvati • {visitedPlaces.length} visitati
-            </p>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
+              <span>{allPlaces.length} salvati • {visitedPlaces.length} visitati</span>
+              {allPlaces.length > 0 && onClearAllPlaces && (
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  title="Svuota completamente tutti gli spot"
+                  className="text-[10px] text-slate-400 hover:text-rose-600 font-semibold px-1.5 py-0.5 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="w-2.5 h-2.5" />
+                  <span>Svuota lista</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -403,21 +419,45 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                 key="empty-state"
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="py-16 text-center max-w-md mx-auto space-y-3"
+                className="py-16 text-center max-w-md mx-auto space-y-4"
               >
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
-                  <Compass className="w-6 h-6" />
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center shadow-inner">
+                  <Compass className="w-7 h-7" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800">
-                  Nessun luogo trovato
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  {hasActiveFilter || searchQuery
-                    ? "Nessun luogo salvato corrisponde ai filtri o alla ricerca corrente."
-                    : visitedTab === "to_visit"
-                    ? "Non hai ancora luoghi da visitare. Salva nuovi spot dalla mappa o aggiungili con il pulsante (+)!"
-                    : "Non hai ancora segnato nessun luogo come visitato. Quando completi una visita, premi 'Segna come visitato'!"}
-                </p>
+                <div className="space-y-1.5">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-200">
+                    {allPlaces.length === 0 ? "Nessun luogo salvato" : "Nessun luogo trovato"}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed px-4">
+                    {allPlaces.length === 0
+                      ? "Il tuo account è completamente vuoto da 0. Pronto per iniziare a salvare e organizzare i tuoi spot preferiti!"
+                      : hasActiveFilter || searchQuery
+                      ? "Nessun luogo salvato corrisponde ai filtri o alla ricerca corrente."
+                      : visitedTab === "to_visit"
+                      ? "Non hai ancora luoghi da visitare. Salva nuovi spot dalla mappa o aggiungili con il pulsante (+)!"
+                      : "Non hai ancora segnato nessun luogo come visitato. Quando completi una visita, premi 'Segna come visitato'!"}
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center justify-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={onOpenAddPlace}
+                    className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all active:scale-98 cursor-pointer flex items-center gap-2"
+                  >
+                    <span>+ Aggiungi il tuo primo spot</span>
+                  </button>
+
+                  {allPlaces.length === 0 && onSeedSamplePlaces && (
+                    <button
+                      type="button"
+                      onClick={onSeedSamplePlaces}
+                      className="text-[11px] text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 font-medium py-1 px-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      (Oppure prova con spot dimostrativi)
+                    </button>
+                  )}
+                </div>
 
                 {searchQuery.trim().length >= 2 && (
                   <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200/90 text-amber-900 text-left space-y-2 mt-2">
@@ -639,9 +679,10 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                             {isDeleting ? (
                               <div 
                                 onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1 bg-rose-50 border border-rose-200 rounded-lg p-1 animate-in fade-in"
+                                className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-900 rounded-full px-2 py-0.5 shadow-xs animate-in fade-in zoom-in-95 duration-150"
                               >
-                                <span className="text-[10px] font-bold text-rose-700 px-1">Elimina?</span>
+                                <Trash2 className="w-3 h-3 text-rose-500 shrink-0" />
+                                <span className="text-[10px] font-bold text-rose-800 dark:text-rose-200">Elimina?</span>
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -649,7 +690,7 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                                     onDeletePlace(place.id);
                                     setConfirmDeleteId(null);
                                   }}
-                                  className="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-700"
+                                  className="px-2 py-0.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold shadow-2xs active:scale-95 transition-all cursor-pointer"
                                 >
                                   Sì
                                 </button>
@@ -659,9 +700,9 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                                     e.stopPropagation();
                                     setConfirmDeleteId(null);
                                   }}
-                                  className="px-1.5 py-0.5 rounded bg-white text-slate-600 text-[10px] font-semibold border border-slate-200"
+                                  className="px-1.5 py-0.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-semibold border border-slate-200 dark:border-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                                 >
-                                  No
+                                  ✕
                                 </button>
                               </div>
                             ) : (
@@ -671,7 +712,7 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                                   e.stopPropagation();
                                   setConfirmDeleteId(place.id);
                                 }}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                                 title="Elimina spot"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1019,6 +1060,60 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
                   className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-all"
                 >
                   Mostra Luoghi ({currentDisplayPlaces.length})
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal for "Svuota lista" */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 12 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 text-center space-y-4"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-inner border border-rose-100">
+                <Trash2 className="w-7 h-7 stroke-[2]" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="text-base font-black text-slate-900">
+                  Svuotare tutti i luoghi?
+                </h4>
+                <p className="text-xs text-slate-500 leading-relaxed px-2">
+                  Tutti i <strong>{allPlaces.length} luoghi salvati</strong> verranno eliminati definitivamente. Il tuo account rimarrà completamente vuoto da 0.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearAllPlaces?.();
+                    setShowClearConfirm(false);
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/20 active:scale-98 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Svuota tutto</span>
                 </button>
               </div>
             </motion.div>

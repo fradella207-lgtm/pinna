@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "motion/react";
 import { 
   Navigation, 
   Copy, 
@@ -68,28 +69,32 @@ export const FloatingPlaceCard: React.FC<FloatingPlaceCardProps> = ({
       <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1">
         {onDeletePlace && (
           confirmDelete ? (
-            <div 
+            <motion.div 
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 p-1 bg-rose-50 border border-rose-200 rounded-full animate-in fade-in"
+              className="flex items-center gap-1.5 px-2 py-0.5 bg-white/95 backdrop-blur-md border border-rose-200 rounded-full shadow-md"
             >
+              <Trash2 className="w-3 h-3 text-rose-500 shrink-0" />
               <button
                 type="button"
                 onClick={() => {
                   onDeletePlace(place.id);
                   onClose();
                 }}
-                className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold text-[10px] hover:bg-rose-700"
+                className="px-2 py-0.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shadow-xs active:scale-95 transition-all cursor-pointer"
               >
                 Elimina
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(false)}
-                className="px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 text-[10px] font-semibold"
+                className="px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-semibold transition-all cursor-pointer"
               >
-                Annulla
+                ✕
               </button>
-            </div>
+            </motion.div>
           ) : (
             <button
               type="button"
@@ -98,7 +103,7 @@ export const FloatingPlaceCard: React.FC<FloatingPlaceCardProps> = ({
                 setConfirmDelete(true);
               }}
               title="Elimina questo luogo"
-              className="p-1.5 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+              className="p-1.5 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>

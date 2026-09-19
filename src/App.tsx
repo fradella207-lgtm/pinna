@@ -38,7 +38,8 @@ export default function App() {
     savePlace, 
     toggleVisited: handleToggleVisited, 
     removePlace: handleDeletePlace,
-    clearAllPlaces
+    clearAllPlaces,
+    seedSamplePlaces
   } = useUserPlaces();
 
   const listStorageKey = user ? `spotter_lists_${user.uid}` : "spotter_lists_guest";
@@ -443,6 +444,8 @@ export default function App() {
         onSelectRegion={handleSelectRegion}
         activeProvince={activeProvince}
         onSelectProvince={handleSelectProvince}
+        onClearAllPlaces={clearAllPlaces}
+        onSeedSamplePlaces={seedSamplePlaces}
       />
 
       {/* 6. DOCK DI NAVIGAZIONE IN BASSO (3 SEZIONI: 🗺️ Mappa, (+) Centrale, 🔖 I Miei Luoghi) */}

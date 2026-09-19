@@ -68,17 +68,17 @@ export function useUserPlaces() {
     // Key for local per-user or guest cache
     const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_guest";
 
-    // If not logged in, load from local storage
+    // If not logged in, load from local storage (starts completely empty if nothing saved)
     if (!user) {
       const local = localStorage.getItem(cacheKey);
       if (local) {
         try {
           setPlaces(JSON.parse(local));
         } catch {
-          setPlaces(INITIAL_PLACES);
+          setPlaces([]);
         }
       } else {
-        setPlaces(INITIAL_PLACES);
+        setPlaces([]);
       }
       setLoading(false);
       return;
@@ -90,42 +90,22 @@ export function useUserPlaces() {
       try {
         setPlaces(JSON.parse(cached));
       } catch {
-        setPlaces(INITIAL_PLACES);
+        setPlaces([]);
       }
     } else {
-      setPlaces(INITIAL_PLACES);
+      setPlaces([]);
     }
 
     // When logged in, listen to user's personal Firestore subcollection
-    const placesPath = `users/${user.uid}/places`;
     const placesColRef = collection(db, "users", user.uid, "places");
 
     const unsubscribe = onSnapshot(
       placesColRef,
       async (snapshot) => {
         if (snapshot.empty) {
-          // If first time this user logs in and collection is empty, seed with initial sample spots
-          try {
-            const batch = writeBatch(db);
-            const initialList: SavedPlace[] = [];
-            INITIAL_PLACES.forEach((place) => {
-              const placeDocRef = doc(db, "users", user.uid, "places", place.id);
-              const dataToSave = sanitizePlaceForFirestore({
-                ...place,
-                userId: user.uid,
-                visited: Boolean(place.stato_iniziale?.visitato || place.visited),
-              });
-              batch.set(placeDocRef, dataToSave);
-              initialList.push(dataToSave as SavedPlace);
-            });
-            await batch.commit();
-            setPlaces(initialList);
-            localStorage.setItem(cacheKey, JSON.stringify(initialList));
-          } catch (err) {
-            console.warn("Could not seed initial places to Firestore:", err);
-            setPlaces(INITIAL_PLACES);
-            localStorage.setItem(cacheKey, JSON.stringify(INITIAL_PLACES));
-          }
+          // New account or empty collection: keep completely empty!
+          setPlaces([]);
+          localStorage.setItem(cacheKey, JSON.stringify([]));
         } else {
           const userPlaces: SavedPlace[] = [];
           snapshot.forEach((docSnap) => {
@@ -146,10 +126,10 @@ export function useUserPlaces() {
           try {
             setPlaces(JSON.parse(local));
           } catch {
-            setPlaces(INITIAL_PLACES);
+            setPlaces([]);
           }
         } else {
-          setPlaces(INITIAL_PLACES);
+          setPlaces([]);
         }
         setLoading(false);
       }
@@ -245,6 +225,30 @@ export function useUserPlaces() {
     }
   };
 
+  // Explicitly seed sample spots on-demand ONLY if user requests it
+  const seedSamplePlaces = async () => {
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_guest";
+    setPlaces(INITIAL_PLACES);
+    localStorage.setItem(cacheKey, JSON.stringify(INITIAL_PLACES));
+
+    if (!user) return;
+    try {
+      const batch = writeBatch(db);
+      INITIAL_PLACES.forEach((place) => {
+        const placeDocRef = doc(db, "users", user.uid, "places", place.id);
+        const dataToSave = sanitizePlaceForFirestore({
+          ...place,
+          userId: user.uid,
+          visited: Boolean(place.stato_iniziale?.visitato || place.visited),
+        });
+        batch.set(placeDocRef, dataToSave);
+      });
+      await batch.commit();
+    } catch (err) {
+      console.warn("Could not seed sample places to Firestore:", err);
+    }
+  };
+
   return {
     places,
     loading,
@@ -252,5 +256,6 @@ export function useUserPlaces() {
     toggleVisited,
     removePlace,
     clearAllPlaces,
+    seedSamplePlaces,
   };
 }
