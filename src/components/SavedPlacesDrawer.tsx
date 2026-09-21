@@ -17,12 +17,19 @@ import {
   Compass,
   Building2,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Download,
+  Sparkles,
+  Crown,
+  FileDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, ActivityFilterKey } from "../types";
 import { ACTIVITY_FILTERS, getActivityColor, getActivityIcon, getTransportModeMeta } from "../data/categories";
 import { UserAccountButton } from "./UserAccountButton";
+import { PinnaLogo } from "./PinnaLogo";
+import { useSubscription } from "../context/SubscriptionContext";
+import { generateGpx, generateKml, downloadFile } from "../lib/exportUtils";
 import { 
   getInsertedCountries,
   getInsertedRegionsAndProvinces, 
@@ -85,6 +92,27 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const { tier, isProOrFounder, openUpgradeModal } = useSubscription();
+
+  const handleExport = (format: "gpx" | "kml") => {
+    if (!isProOrFounder) {
+      openUpgradeModal("L'esportazione di waypoint e percorsi in file GPX e KML per navigatori GPS (Garmin, OsmAnd, Gaia GPS, Google Earth) è disponibile con PINNA Pro e Founder.");
+      return;
+    }
+    if (allPlaces.length === 0) {
+      return;
+    }
+    if (format === "gpx") {
+      const content = generateGpx(allPlaces);
+      downloadFile(content, "pinna-spot.gpx", "application/gpx+xml");
+    } else {
+      const content = generateKml(allPlaces);
+      downloadFile(content, "pinna-spot.kml", "application/vnd.google-earth.kml+xml");
+    }
+    setShowExportMenu(false);
+  };
 
   // Dynamic calculation of inserted countries across all user places
   const insertedCountries = useMemo(() => {
@@ -147,13 +175,37 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
       {/* 1. Header Desktop & Mobile */}
       <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center shadow-xs">
-            <Bookmark className="w-4 h-4 fill-current" />
-          </div>
+          <PinnaLogo size={34} />
           <div>
-            <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-              I Miei Luoghi
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                I Miei Luoghi
+              </h1>
+
+              {/* Tier status badge */}
+              {tier === "base" ? (
+                <button
+                  type="button"
+                  onClick={() => openUpgradeModal("Passa a PINNA Pro per salvare spot illimitati sulla mappa!")}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200/90 dark:border-indigo-800 transition-colors cursor-pointer"
+                  title="20 spot gratuiti nel piano Base. Clicca per sbloccare spot illimitati!"
+                >
+                  <span>{allPlaces.length}/20 spot</span>
+                  <span className="text-[9px] uppercase tracking-wider text-indigo-500 font-extrabold">• Pro</span>
+                </button>
+              ) : tier === "founder" ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800">
+                  <Crown className="w-2.5 h-2.5 text-amber-500" />
+                  <span>Founder</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/90 dark:border-indigo-800">
+                  <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
+                  <span>Pro</span>
+                </span>
+              )}
+            </div>
+
             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-2">
               <span>{allPlaces.length} salvati • {visitedPlaces.length} visitati</span>
               {allPlaces.length > 0 && onClearAllPlaces && (
@@ -190,6 +242,50 @@ export const SavedPlacesDrawer: React.FC<SavedPlacesDrawerProps> = ({
               >
                 ✕
               </button>
+            )}
+          </div>
+
+          {/* Export GPX / KML Button */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs cursor-pointer"
+              title="Esporta i tuoi spot per navigatori GPS (GPX o KML)"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden md:inline">Esporta</span>
+            </button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-1.5 z-30 space-y-1">
+                <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Formato GPS per navigatori
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleExport("gpx")}
+                  className="w-full text-left p-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer text-slate-800 dark:text-slate-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileDown className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>File GPX (.gpx)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Garmin/OsmAnd</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExport("kml")}
+                  className="w-full text-left p-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between transition-colors cursor-pointer text-slate-800 dark:text-slate-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>File KML (.kml)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Google Earth</span>
+                </button>
+              </div>
             )}
           </div>
 

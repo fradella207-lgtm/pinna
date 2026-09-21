@@ -30,24 +30,29 @@ import { detectPlaceRegionsAndProvinces, getCountryFlag } from "../lib/geoItaly"
 
 interface PlaceDetailModalProps {
   place: SavedPlace | null;
-  lists: CustomList[];
+  lists?: CustomList[];
   onClose: () => void;
   onCenterOnMap: (place: SavedPlace) => void;
   onToggleVisited: (id: string) => void;
-  onToggleListAssignment: (placeId: string, listId: string) => void;
+  onToggleListAssignment?: (placeId: string, listId: string) => void;
   onUpdatePlace?: (updated: SavedPlace) => void;
   onDeletePlace?: (id: string) => void;
 }
 
-export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
+interface PlaceDetailModalContentProps extends PlaceDetailModalProps {
+  place: SavedPlace;
+}
+
+const PlaceDetailModalContent: React.FC<PlaceDetailModalContentProps> = ({
   place,
   onClose,
   onCenterOnMap,
   onToggleVisited,
+  onToggleListAssignment,
   onUpdatePlace,
   onDeletePlace,
+  lists,
 }) => {
-  if (!place) return null;
 
   const [activeViewMode, setActiveViewMode] = useState<"view" | "edit">("view");
   const [copied, setCopied] = useState(false);
@@ -633,10 +638,12 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                           </span>
 
                           {/* Transport Mode Badge */}
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/90 backdrop-blur-md text-white shadow-xs flex items-center gap-1">
-                            <span>{transportMeta.emoji}</span>
-                            <span>{transportMeta.label}</span>
-                          </span>
+                          {transportMeta && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/90 backdrop-blur-md text-white shadow-xs flex items-center gap-1">
+                              <span>{transportMeta.emoji}</span>
+                              <span>{transportMeta.label}</span>
+                            </span>
+                          )}
 
                           {place.tag_contestuale && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 backdrop-blur-md text-white border border-white/20">
@@ -795,8 +802,8 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                   <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block">Mezzo</span>
                     <span className="font-bold text-slate-800 dark:text-white flex items-center gap-1 mt-0.5 truncate">
-                      <span>{transportMeta.emoji}</span>
-                      <span className="text-[11px] truncate">{transportMeta.shortLabel}</span>
+                      <span>{transportMeta ? transportMeta.emoji : "🚗"}</span>
+                      <span className="text-[11px] truncate">{transportMeta ? transportMeta.shortLabel : "Auto"}</span>
                     </span>
                   </div>
 
@@ -916,3 +923,9 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
     </>
   );
 };
+
+export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = (props) => {
+  if (!props.place) return null;
+  return <PlaceDetailModalContent key={props.place.id} {...props} place={props.place} />;
+};
+

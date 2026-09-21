@@ -386,7 +386,7 @@ export default function App() {
           )}
         </div>
 
-        {/* User Account Google Sign-in / Profile Button */}
+        {/* User Account / Profile Button */}
         <UserAccountButton />
       </div>
 
@@ -479,20 +479,22 @@ export default function App() {
       />
 
       {/* 7. SCHEDA LUOGO MINIMAL - LIVELLO 2 (Espanso al Tap: Modifica, Note, Foto, Maps) */}
-      <PlaceDetailModal
-        place={activeDetailPlace}
-        lists={lists}
-        onClose={() => setDetailPlace(null)}
-        onCenterOnMap={(p) => {
-          setMapSelectedPlace(p);
-          setDetailPlace(null);
-          setActiveDockTab("map");
-        }}
-        onToggleVisited={handleToggleVisited}
-        onToggleListAssignment={handleToggleListAssignment}
-        onUpdatePlace={handleUpdatePlace}
-        onDeletePlace={handleDeletePlaceWithCleanup}
-      />
+      {activeDetailPlace && (
+        <PlaceDetailModal
+          place={activeDetailPlace}
+          lists={lists}
+          onClose={() => setDetailPlace(null)}
+          onCenterOnMap={(p) => {
+            setMapSelectedPlace(p);
+            setDetailPlace(null);
+            setActiveDockTab("map");
+          }}
+          onToggleVisited={handleToggleVisited}
+          onToggleListAssignment={handleToggleListAssignment}
+          onUpdatePlace={handleUpdatePlace}
+          onDeletePlace={handleDeletePlaceWithCleanup}
+        />
+      )}
 
       {/* 8. MODALE INSERIMENTO SPOT */}
       <AiExtractorModal

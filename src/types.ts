@@ -192,3 +192,21 @@ export interface ExtractionResult {
 export type TransportMode = "auto" | "moto" | "bici" | "piedi" | "camper" | "treno_bus" | string;
 export { getTransportModeMeta } from "./data/categories";
 export type { TransportModeMeta } from "./data/categories";
+
+export type SubscriptionTier = "base" | "pro" | "founder";
+export type BillingCycle = "monthly" | "yearly" | "lifetime";
+
+export interface PricingPlan {
+  id: SubscriptionTier;
+  name: string;
+  tagline: string;
+  badge?: string;
+  priceFormatted: string;
+  subPriceText: string;
+  maxSpots: number;
+  features: string[];
+  ctaLabel: string;
+  isPopular?: boolean;
+  isLifetime?: boolean;
+}
+

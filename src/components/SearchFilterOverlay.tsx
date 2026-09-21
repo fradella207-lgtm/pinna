@@ -56,8 +56,6 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
   onSelectTransport,
   totalFiltered,
 }) => {
-  if (!isOpen) return null;
-
   const insertedCountries = useMemo(() => {
     return getInsertedCountries(allPlaces);
   }, [allPlaces]);
@@ -71,6 +69,8 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
     if (activeRegion === "tutte") return insertedProvinces;
     return insertedProvinces.filter((p) => p.region.toLowerCase() === activeRegion.toLowerCase());
   }, [insertedProvinces, activeRegion]);
+
+  if (!isOpen) return null;
 
   const hasAnyFilter = 
     activeActivity !== "tutti" || 
