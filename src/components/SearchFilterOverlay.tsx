@@ -8,7 +8,7 @@ import {
   Globe
 } from "lucide-react";
 import { ActivityFilterKey, SavedPlace } from "../types";
-import { ACTIVITY_FILTERS, getActivityIcon } from "../data/categories";
+import { ACTIVITY_FILTERS, getActivityIcon, TRANSPORT_MODES } from "../data/categories";
 import { SpecialFilterType } from "./ActivityFilterBar";
 import { 
   getInsertedCountries, 
@@ -31,6 +31,8 @@ interface SearchFilterOverlayProps {
   onSelectRegion: (reg: string) => void;
   activeProvince: string;
   onSelectProvince: (prov: string) => void;
+  activeTransport?: string;
+  onSelectTransport?: (transport: string) => void;
   totalFiltered: number;
 }
 
@@ -50,6 +52,8 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
   onSelectRegion,
   activeProvince,
   onSelectProvince,
+  activeTransport = "tutti",
+  onSelectTransport,
   totalFiltered,
 }) => {
   if (!isOpen) return null;
@@ -74,6 +78,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
     activeCountry !== "tutti" ||
     activeRegion !== "tutte" || 
     activeProvince !== "tutte" || 
+    activeTransport !== "tutti" ||
     Boolean(searchQuery.trim());
 
   const handleResetAll = () => {
@@ -82,17 +87,18 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
     onSelectSpecialFilter("all");
     onSelectRegion("tutte");
     onSelectProvince("tutte");
+    onSelectTransport?.("tutti");
     onSearchChange("");
   };
 
   return (
     <div className="fixed top-20 left-4 right-4 max-w-xl mx-auto z-30 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
-      <div className="bg-white/95 text-slate-900 backdrop-blur-2xl border border-slate-200/90 rounded-3xl shadow-[0_12px_36px_rgba(0,0,0,0.15)] p-4 space-y-3.5 max-h-[82vh] overflow-y-auto">
+      <div className="bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800 rounded-3xl shadow-[0_12px_36px_rgba(0,0,0,0.15)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 space-y-3.5 max-h-[82vh] overflow-y-auto">
         
         {/* Top Header & Quick Reset */}
-        <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+        <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span>Filtra Luoghi ({totalFiltered} visibili)</span>
           </div>
 
@@ -101,7 +107,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
               <button
                 type="button"
                 onClick={handleResetAll}
-                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Azzera</span>
@@ -110,7 +116,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors"
+              className="p-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -121,7 +127,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
         {insertedCountries.length > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
                 <Globe className="w-3 h-3 text-sky-500" />
                 <span>Stato / Nazione ({insertedCountries.length} presenti)</span>
               </span>
@@ -129,7 +135,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectCountry("tutti")}
-                  className="text-[10px] text-slate-400 hover:text-slate-700"
+                  className="text-[10px] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                 >
                   Tutti
                 </button>
@@ -139,10 +145,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectCountry("tutti")}
-                className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all text-xs flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
                   activeCountry === "tutti"
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 <span>🌍</span>
@@ -155,16 +161,16 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                     key={c.name}
                     type="button"
                     onClick={() => onSelectCountry(isSelected ? "tutti" : c.name)}
-                    className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 text-xs ${
+                    className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 text-xs cursor-pointer ${
                       isSelected
-                        ? "bg-slate-900 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                     }`}
                   >
                     <span>{c.flag}</span>
                     <span>{c.name}</span>
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isSelected ? "bg-white/20 text-white" : "bg-slate-200/80 text-slate-600"
+                      isSelected ? "bg-white/20 dark:bg-black/20 text-white dark:text-slate-900" : "bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                     }`}>
                       {c.count}
                     </span>
@@ -179,7 +185,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
         {insertedRegions.length > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-rose-500" />
                 <span>Regione ({insertedRegions.length} presenti)</span>
               </span>
@@ -187,7 +193,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectRegion("tutte")}
-                  className="text-[10px] text-slate-400 hover:text-slate-700"
+                  className="text-[10px] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                 >
                   Tutte
                 </button>
@@ -197,10 +203,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectRegion("tutte")}
-                className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all text-xs ${
+                className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all text-xs cursor-pointer ${
                   activeRegion === "tutte"
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Tutte le regioni
@@ -212,15 +218,15 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                     key={r.name}
                     type="button"
                     onClick={() => onSelectRegion(isSelected ? "tutte" : r.name)}
-                    className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 text-xs ${
+                    className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 text-xs cursor-pointer ${
                       isSelected
-                        ? "bg-slate-900 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                     }`}
                   >
                     <span>{r.name}</span>
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isSelected ? "bg-white/20 text-white" : "bg-slate-200/80 text-slate-600"
+                      isSelected ? "bg-white/20 dark:bg-black/20 text-white dark:text-slate-900" : "bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                     }`}>
                       {r.count}
                     </span>
@@ -235,7 +241,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
         {provincesForDisplay.length > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-amber-500" />
                 <span>
                   Provincia {activeRegion !== "tutte" ? `in ${activeRegion}` : "inserite"} ({provincesForDisplay.length})
@@ -245,7 +251,7 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectProvince("tutte")}
-                  className="text-[10px] text-slate-400 hover:text-slate-700"
+                  className="text-[10px] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                 >
                   Tutte
                 </button>
@@ -255,10 +261,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectProvince("tutte")}
-                className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all text-xs ${
+                className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all text-xs cursor-pointer ${
                   activeProvince === "tutte"
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                 }`}
               >
                 Tutte le province
@@ -271,20 +277,20 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                     key={p.code}
                     type="button"
                     onClick={() => onSelectProvince(isSelected ? "tutte" : p.code)}
-                    className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 text-xs ${
+                    className={`px-2.5 py-1 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 text-xs cursor-pointer ${
                       isSelected
-                        ? "bg-slate-900 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                     }`}
                   >
                     <span>{p.name}</span>
                     <span className={`text-[10px] font-mono font-bold ${
-                      isSelected ? "text-amber-200" : "text-slate-400"
+                      isSelected ? "text-amber-200 dark:text-amber-700" : "text-slate-400"
                     }`}>
                       {p.code}
                     </span>
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isSelected ? "bg-white/20 text-white" : "bg-slate-200/80 text-slate-600"
+                      isSelected ? "bg-white/20 dark:bg-black/20 text-white dark:text-slate-900" : "bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                     }`}>
                       {p.count}
                     </span>
@@ -296,18 +302,18 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
         )}
 
         {/* 3. CATEGORIE SPOT */}
-        <div className="space-y-1.5 pt-1 border-t border-slate-100">
-          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+        <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
             Categoria
           </span>
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
             <button
               type="button"
               onClick={() => onSelectActivity("tutti")}
-              className={`px-3 py-1.5 rounded-full font-semibold shrink-0 transition-all ${
+              className={`px-3 py-1.5 rounded-full font-semibold shrink-0 transition-all cursor-pointer ${
                 activeActivity === "tutti"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
               }`}
             >
               Tutti
@@ -320,14 +326,52 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
                   key={f.key}
                   type="button"
                   onClick={() => onSelectActivity(f.key)}
-                  className={`px-3 py-1.5 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
                     isActive
-                      ? "bg-slate-900 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                   }`}
                 >
                   <span>{getActivityIcon(f.categoryName)}</span>
                   <span>{f.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 3b. MEZZO DI TRASPORTO / ATTIVITÀ */}
+        <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+            Mezzo di Trasporto / Attività
+          </span>
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => onSelectTransport?.("tutti")}
+              className={`px-3 py-1.5 rounded-full font-semibold shrink-0 transition-all cursor-pointer ${
+                activeTransport === "tutti"
+                  ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+              }`}
+            >
+              Tutti i mezzi
+            </button>
+            {TRANSPORT_MODES.map((tm) => {
+              const isSelected = activeTransport === tm.key;
+              return (
+                <button
+                  key={tm.key}
+                  type="button"
+                  onClick={() => onSelectTransport?.(isSelected ? "tutti" : tm.key)}
+                  className={`px-3 py-1.5 rounded-full font-semibold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  <span>{tm.emoji}</span>
+                  <span>{tm.label}</span>
                 </button>
               );
             })}
@@ -339,10 +383,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
           <button
             type="button"
             onClick={() => onSelectSpecialFilter("all")}
-            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-full font-medium transition-all cursor-pointer ${
               specialFilter === "all"
-                ? "bg-slate-200 text-slate-900 font-bold"
-                : "text-slate-500 hover:bg-slate-100"
+                ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             Tutti i luoghi
@@ -350,10 +394,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
           <button
             type="button"
             onClick={() => onSelectSpecialFilter("to_visit")}
-            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-full font-medium transition-all cursor-pointer ${
               specialFilter === "to_visit"
-                ? "bg-slate-200 text-slate-900 font-bold"
-                : "text-slate-500 hover:bg-slate-100"
+                ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             Da visitare
@@ -361,10 +405,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
           <button
             type="button"
             onClick={() => onSelectSpecialFilter("visited")}
-            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-full font-medium transition-all cursor-pointer ${
               specialFilter === "visited"
-                ? "bg-slate-200 text-slate-900 font-bold"
-                : "text-slate-500 hover:bg-slate-100"
+                ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             Visitati
@@ -372,10 +416,10 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
           <button
             type="button"
             onClick={() => onSelectSpecialFilter("top_recommended")}
-            className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-full font-medium transition-all cursor-pointer ${
               specialFilter === "top_recommended"
-                ? "bg-slate-200 text-slate-900 font-bold"
-                : "text-slate-500 hover:bg-slate-100"
+                ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             ★ Top Consigliati
@@ -384,15 +428,15 @@ export const SearchFilterOverlay: React.FC<SearchFilterOverlayProps> = ({
 
         {/* Google Maps Search trigger */}
         {searchQuery.trim().length > 1 && (
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
               Cerchi un luogo ovunque nel mondo?
             </span>
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
             >
               <span>Cerca "{searchQuery}" su Google Maps</span>
               <ExternalLink className="w-3 h-3" />

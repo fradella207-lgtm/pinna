@@ -119,6 +119,10 @@ export interface SavedPlace {
   list_ids: string[];
   saved_at: string;
   
+  // Transport mode / Mezzo con cui si deve fare l'attività (auto, bici, a piedi, moto, camper, ecc.)
+  mezzo_trasporto?: string;
+  mezzi_consigliati?: string[];
+  
   // Geographic administrative tags
   paese?: string;
   regione?: string;
@@ -181,4 +185,10 @@ export interface ExtractionResult {
   stato_iniziale?: PlaceState;
   coordinate?: PlaceCoordinates;
   coordinate_percorso?: PlaceCoordinates[];
+  mezzo_trasporto?: string;
+  mezzi_consigliati?: string[];
 }
+
+export type TransportMode = "auto" | "moto" | "bici" | "piedi" | "camper" | "treno_bus" | string;
+export { getTransportModeMeta } from "./data/categories";
+export type { TransportModeMeta } from "./data/categories";

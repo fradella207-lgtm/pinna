@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SavedPlace, CustomList } from "../types";
-import { getActivityIcon, ACTIVITY_FILTERS } from "../data/categories";
+import { getActivityIcon, ACTIVITY_FILTERS, TRANSPORT_MODES, TransportMode, getTransportModeMeta } from "../data/categories";
 import { InstagramStoryRecapModal } from "./InstagramStoryRecapModal";
 import { detectPlaceRegionsAndProvinces, getCountryFlag } from "../lib/geoItaly";
 
@@ -64,6 +64,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   const [editLocation, setEditLocation] = useState(place.citta_o_zona || "");
   const [editCountry, setEditCountry] = useState(place.paese || "Italia");
   const [editCategory, setEditCategory] = useState(place.categoria || "Passi di Montagna");
+  const [editTransportMode, setEditTransportMode] = useState<TransportMode>(place.mezzo_trasporto || "auto");
   const [editSummary, setEditSummary] = useState(place.riassunto_ai_minimal || "");
   const [editDuration, setEditDuration] = useState(place.metadata_ai_nascosti?.durata_stimata_minuti || 90);
   const [editMoment, setEditMoment] = useState(place.metadata_ai_nascosti?.momento_ideale || "Mattina presto");
@@ -86,6 +87,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
       setEditLocation(place.citta_o_zona || "");
       setEditCountry(place.paese || "Italia");
       setEditCategory(place.categoria || "Passi di Montagna");
+      setEditTransportMode(place.mezzo_trasporto || "auto");
       setEditSummary(place.riassunto_ai_minimal || "");
       setEditDuration(place.metadata_ai_nascosti?.durata_stimata_minuti || 90);
       setEditMoment(place.metadata_ai_nascosti?.momento_ideale || "Mattina presto");
@@ -103,6 +105,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   const isVisited = Boolean(place.stato_iniziale?.visitato || place.visited);
   const placeName = place.nome || place.nome_luogo || "Luogo salvato";
   const placeLocation = place.citta_o_zona || "Italia";
+  const transportMeta = getTransportModeMeta(place.mezzo_trasporto);
 
   const googleMapsNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.coordinate?.lat},${place.coordinate?.lng}`;
 
@@ -165,6 +168,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
       regione: editedGeo.primaryRegion || place.regione,
       provincia: editedGeo.primaryProvince?.code || place.provincia,
       categoria: editCategory,
+      mezzo_trasporto: editTransportMode,
       tipo_entita: editIsRoute ? "PERCORSO" : "PUNTO",
       riassunto_ai_minimal: editSummary.trim(),
       user_notes: personalNotes.trim() || undefined,
@@ -214,20 +218,20 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: "100%", opacity: 0 }}
           transition={{ type: "spring", stiffness: 380, damping: 32 }}
-          className="relative w-full sm:max-w-xl max-h-[92vh] sm:max-h-[88vh] bg-white text-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+          className="relative w-full sm:max-w-xl max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden"
         >
           
           {/* Header Bar with View/Edit Segment */}
-          <div className="px-5 py-3 border-b border-slate-100 bg-white flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
             {/* View vs Edit Toggle Switch */}
-            <div className="flex p-0.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold">
+            <div className="flex p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => setActiveViewMode("view")}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all ${
                   activeViewMode === "view"
-                    ? "bg-white text-slate-900 shadow-xs font-bold"
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
@@ -238,8 +242,8 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                 onClick={() => setActiveViewMode("edit")}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all ${
                   activeViewMode === "edit"
-                    ? "bg-white text-slate-900 shadow-xs font-bold"
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 <Edit3 className="w-3.5 h-3.5" />
@@ -252,10 +256,10 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowStoryRecap(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors shadow-xs active:scale-95"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 font-bold text-xs transition-colors shadow-xs active:scale-95 cursor-pointer"
                 title="Crea Story Recap per Instagram / WhatsApp"
               >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span className="hidden sm:inline">Story Recap</span>
               </button>
 
@@ -265,10 +269,10 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                   type="button"
                   onClick={() => setConfirmDelete(!confirmDelete)}
                   title="Elimina questo luogo"
-                  className={`p-1.5 rounded-full transition-colors ${
+                  className={`p-1.5 rounded-full transition-colors cursor-pointer ${
                     confirmDelete
-                      ? "bg-rose-100 text-rose-700"
-                      : "bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+                      ? "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300"
+                      : "bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/40 text-slate-400 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
                   }`}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -278,7 +282,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors"
+                className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -292,25 +296,25 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+                className="absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4"
               >
                 <motion.div
                   initial={{ scale: 0.92, opacity: 0, y: 12 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.92, opacity: 0, y: 12 }}
                   transition={{ type: "spring", damping: 25, stiffness: 350 }}
-                  className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-rose-100 text-center space-y-4"
+                  className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/50 text-center space-y-4"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto shadow-inner border border-rose-100">
+                  <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto shadow-inner border border-rose-100 dark:border-rose-900">
                     <Trash2 className="w-7 h-7 stroke-[2]" />
                   </div>
 
                   <div className="space-y-1.5">
-                    <h4 className="text-base font-black text-slate-900">
+                    <h4 className="text-base font-black text-slate-900 dark:text-white">
                       Eliminare questo spot?
                     </h4>
-                    <p className="text-xs text-slate-500 leading-relaxed px-2">
-                      Vuoi rimuovere definitivamente <strong className="text-slate-800">"{placeName}"</strong> dai tuoi luoghi salvati?
+                    <p className="text-xs text-slate-500 dark:text-slate-300 leading-relaxed px-2">
+                      Vuoi rimuovere definitivamente <strong className="text-slate-800 dark:text-slate-100">"{placeName}"</strong> dai tuoi luoghi salvati?
                     </p>
                   </div>
 
@@ -318,7 +322,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setConfirmDelete(false)}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
                     >
                       Annulla
                     </button>
@@ -337,7 +341,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
           </AnimatePresence>
 
           {/* Body Content */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-white dark:bg-slate-900">
             
             {activeViewMode === "edit" ? (
               /* --- EDIT MODE: CLEAN, INTUITIVE & COMPLETE --- */
@@ -363,17 +367,17 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                 {/* 1. Nome & Località */}
                 <div className="space-y-2 text-xs">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Nome del Luogo</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Nome del Luogo</label>
                     <input
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold focus:bg-white dark:focus:bg-slate-750 focus:ring-2 focus:ring-slate-900 dark:focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Città o Zona Geografica</label>
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Città o Zona Geografica</label>
                     <input
                       type="text"
                       value={editLocation}
@@ -385,7 +389,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                           setEditCountry(det.primaryCountry);
                         }
                       }}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold focus:bg-white dark:focus:bg-slate-750 focus:ring-2 focus:ring-slate-900 dark:focus:ring-indigo-500 focus:outline-none"
                     />
                     {/* Country Selector in Edit Mode */}
                     <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1.5 pb-0.5">
@@ -398,8 +402,8 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                             onClick={() => setEditCountry(cName)}
                             className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 transition-all flex items-center gap-1 ${
                               isSel
-                                ? "bg-slate-900 text-white shadow-xs"
-                                : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                                ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                                : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
                             }`}
                           >
                             <span>{getCountryFlag(cName)}</span>
@@ -411,9 +415,36 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Categoria (Chip Selection) */}
+                {/* 2. MEZZO DI TRASPORTO PER L'ATTIVITÀ */}
+                <div className="space-y-1.5 p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+                  <label className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                    <span>Mezzo Consigliato per l'Attività</span>
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 pt-1">
+                    {TRANSPORT_MODES.map((tm) => {
+                      const isSelected = editTransportMode === tm.key;
+                      return (
+                        <button
+                          key={tm.key}
+                          type="button"
+                          onClick={() => setEditTransportMode(tm.key)}
+                          className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all border cursor-pointer ${
+                            isSelected
+                              ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/25 scale-102"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400"
+                          }`}
+                        >
+                          <span className="text-base">{tm.emoji}</span>
+                          <span className="text-[10px] leading-tight">{tm.shortLabel}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Categoria (Chip Selection) */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">Categoria</label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Categoria</label>
                   <div className="flex flex-wrap gap-1.5">
                     {ACTIVITY_FILTERS.map((f) => {
                       const isSelected = editCategory === f.categoryName;
@@ -422,10 +453,10 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                           key={f.key}
                           type="button"
                           onClick={() => setEditCategory(f.categoryName)}
-                          className={`px-3 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all ${
+                          className={`px-3 py-1 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                             isSelected
-                              ? "bg-slate-900 text-white shadow-xs"
-                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                              ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                           }`}
                         >
                           <span>{getActivityIcon(f.categoryName)}</span>
@@ -436,53 +467,53 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                   </div>
                 </div>
 
-                {/* 3. Tipo: Spot Singolo vs Itinerario */}
+                {/* 4. Tipo: Spot Singolo vs Itinerario */}
                 <div className="flex items-center gap-4 py-1 text-xs">
-                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
                     <input
                       type="radio"
                       name="editEntityRadio"
                       checked={!editIsRoute}
                       onChange={() => setEditIsRoute(false)}
-                      className="accent-slate-900"
+                      className="accent-slate-900 dark:accent-indigo-500"
                     />
                     <span>📍 Spot Singolo</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
                     <input
                       type="radio"
                       name="editEntityRadio"
                       checked={editIsRoute}
                       onChange={() => setEditIsRoute(true)}
-                      className="accent-slate-900"
+                      className="accent-slate-900 dark:accent-indigo-500"
                     />
                     <span>⛰️ Itinerario Panoramico</span>
                   </label>
                 </div>
 
-                {/* 4. Sintesi / Descrizione */}
+                {/* 5. Sintesi / Descrizione */}
                 <div className="text-xs">
-                  <label className="font-bold text-slate-700 block mb-1">Descrizione / Note Spotter</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Descrizione / Note Spotter</label>
                   <textarea
                     rows={2}
                     value={editSummary}
                     onChange={(e) => setEditSummary(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-medium focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium focus:bg-white dark:focus:bg-slate-750 focus:ring-2 focus:ring-slate-900 dark:focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
-                {/* 5. Coordinate GPS */}
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                {/* 6. Coordinate GPS */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-700 flex items-center gap-1">
-                      <Compass className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <Compass className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       <span>Coordinate GPS</span>
                     </span>
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${editName} ${editLocation}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
                     >
                       <span>Verifica su Maps</span>
                       <ExternalLink className="w-3 h-3" />
@@ -490,37 +521,37 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <span className="text-[10px] text-slate-500 block mb-0.5">Latitudine</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Latitudine</span>
                       <input
                         type="number"
                         step="0.0001"
                         value={editLat}
                         onChange={(e) => setEditLat(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-mono text-slate-900 text-xs focus:ring-1 focus:ring-slate-900"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 font-mono text-slate-900 dark:text-white text-xs focus:ring-1 focus:ring-slate-900"
                       />
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block mb-0.5">Longitudine</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Longitudine</span>
                       <input
                         type="number"
                         step="0.0001"
                         value={editLng}
                         onChange={(e) => setEditLng(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-mono text-slate-900 text-xs focus:ring-1 focus:ring-slate-900"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 font-mono text-slate-900 dark:text-white text-xs focus:ring-1 focus:ring-slate-900"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* 6. URL Immagine di Copertina */}
+                {/* 7. URL Immagine di Copertina */}
                 <div className="text-xs">
-                  <label className="font-bold text-slate-700 block mb-1">URL Immagine Principale</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">URL Immagine Principale</label>
                   <input
                     type="url"
                     value={editCoverUrl}
                     onChange={(e) => setEditCoverUrl(e.target.value)}
                     placeholder="https://images.unsplash.com/..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono text-[11px] focus:bg-white focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono text-[11px] focus:bg-white dark:focus:bg-slate-750 focus:ring-2 focus:ring-slate-900 focus:outline-none"
                   />
                 </div>
 
@@ -580,7 +611,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
               >
                 {/* Photo & Cover Gallery */}
                 <div className="space-y-2">
-                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-100 border border-slate-100 shadow-xs">
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 shadow-xs">
                     <img
                       src={photos[selectedPhotoIndex]}
                       alt={placeName}
@@ -589,7 +620,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                         isVisited ? "grayscale contrast-105 hover:grayscale-0" : ""
                       }`}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
 
                     <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
                       <div>
@@ -600,6 +631,13 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                           >
                             {place.categoria_principale || place.categoria}
                           </span>
+
+                          {/* Transport Mode Badge */}
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/90 backdrop-blur-md text-white shadow-xs flex items-center gap-1">
+                            <span>{transportMeta.emoji}</span>
+                            <span>{transportMeta.label}</span>
+                          </span>
+
                           {place.tag_contestuale && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/40 backdrop-blur-md text-white border border-white/20">
                               {place.tag_contestuale}
@@ -625,7 +663,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                             </span>
                           )}
                         </div>
-                        <h2 className="text-xl font-bold leading-tight drop-shadow-sm">
+                        <h2 className="text-xl font-bold leading-tight drop-shadow-sm text-white">
                           {placeName}
                         </h2>
                         <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5">
@@ -638,7 +676,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                       <button
                         type="button"
                         onClick={() => onToggleVisited(place.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md transition-all ${
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
                           isVisited
                             ? "bg-emerald-500 text-white"
                             : "bg-white/95 text-slate-800 hover:bg-white"
@@ -652,12 +690,12 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
 
                   {/* Low confidence warning banner */}
                   {place.confidenza_alta === false && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
                       <span className="text-base">⚠️</span>
                       <div className="space-y-0.5">
-                        <span className="font-bold block text-xs text-amber-950">Posizione approssimativa o da verificare</span>
-                        <p className="text-[11px] text-amber-800 leading-relaxed">
-                          La geolocalizzazione automatica è avvenuta a bassa confidenza. Puoi usare la modalità Modifica (tasto matita in alto) per posizionare il punto o la via esatta.
+                        <span className="font-bold block text-xs text-amber-950 dark:text-amber-100">Posizione approssimativa o da verificare</span>
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                          La geolocalizzazione automatica è avvenuta a bassa confidenza. Puoi usare la modalità Modifica per posizionare il punto o la via esatta.
                         </p>
                       </div>
                     </div>
@@ -667,7 +705,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                   {place.badge_rapidi && place.badge_rapidi.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {place.badge_rapidi.map((badge, bIdx) => (
-                        <span key={bIdx} className="px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold">
+                        <span key={bIdx} className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold">
                           #{badge}
                         </span>
                       ))}
@@ -683,7 +721,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                         onClick={() => setSelectedPhotoIndex(idx)}
                         className={`relative w-14 h-11 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
                           selectedPhotoIndex === idx
-                            ? "border-slate-900 scale-105 shadow-xs"
+                            ? "border-slate-900 dark:border-white scale-105 shadow-xs"
                             : "border-transparent opacity-60 hover:opacity-100"
                         }`}
                       >
@@ -699,7 +737,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-14 h-11 rounded-xl border-2 border-dashed border-slate-300 hover:border-slate-500 bg-slate-50 flex flex-col items-center justify-center text-slate-500 hover:text-slate-900 transition-colors shrink-0"
+                      className="w-14 h-11 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-slate-500 dark:hover:border-slate-500 bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 cursor-pointer"
                       title="Carica una tua foto scattata sul posto"
                     >
                       <Camera className="w-4 h-4" />
@@ -716,18 +754,18 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                 </div>
 
                 {/* Note Personali per il luogo */}
-                <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/70 space-y-2">
+                <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/40 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                       <span>Le mie Note (per quando ci ritorno)</span>
                     </span>
                     <button
                       type="button"
                       onClick={handleSaveNotes}
-                      className="flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2.5 py-0.5 rounded-lg transition-colors"
+                      className="flex items-center gap-1 text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 hover:bg-amber-200 dark:hover:bg-amber-900 px-2.5 py-0.5 rounded-lg transition-colors cursor-pointer"
                     >
-                      {isNotesSaved ? <Check className="w-3 h-3 text-emerald-600" /> : <Save className="w-3 h-3" />}
+                      {isNotesSaved ? <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> : <Save className="w-3 h-3" />}
                       <span>{isNotesSaved ? "Salvate!" : "Salva"}</span>
                     </button>
                   </div>
@@ -737,51 +775,59 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                     value={personalNotes}
                     onChange={(e) => setPersonalNotes(e.target.value)}
                     placeholder="Es: 'Parcheggiare vicino alla cascata, portare abbigliamento pesante'..."
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-amber-200/80 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-200/80 dark:border-amber-900/50 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
 
                 {/* Sintesi AI */}
-                <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700">
-                    <Sparkles className="w-3.5 h-3.5" />
+                <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     <span>Sintesi AI pinna</span>
                   </div>
-                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
                     {place.sintesi || place.riassunto_ai_minimal || "Spot panoramico scoperto dai consigli della community."}
                   </p>
                 </div>
 
-                {/* Metadata cards */}
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Durata</span>
-                    <span className="font-bold text-slate-800 flex items-center gap-1 mt-0.5">
+                {/* Metadata cards - with Transport Mode */}
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block">Mezzo</span>
+                    <span className="font-bold text-slate-800 dark:text-white flex items-center gap-1 mt-0.5 truncate">
+                      <span>{transportMeta.emoji}</span>
+                      <span className="text-[11px] truncate">{transportMeta.shortLabel}</span>
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block">Durata</span>
+                    <span className="font-bold text-slate-800 dark:text-white flex items-center gap-1 mt-0.5">
                       <Clock className="w-3 h-3 text-amber-500" />
                       {place.metadata_ai_nascosti?.durata_stimata_minuti || 90}m
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Momento</span>
-                    <span className="font-bold text-slate-800 mt-0.5 truncate block">
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block">Momento</span>
+                    <span className="font-bold text-slate-800 dark:text-white mt-0.5 truncate block">
                       {place.metadata_ai_nascosti?.momento_ideale || "Mattina"}
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Meteo</span>
-                    <span className="font-bold text-slate-800 mt-0.5 truncate block flex items-center gap-1">
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block">Meteo</span>
+                    <span className="font-bold text-slate-800 dark:text-white mt-0.5 truncate block flex items-center gap-1">
                       <Sun className="w-3 h-3 text-amber-500" />
-                      {place.metadata_ai_nascosti?.meteo_consigliato || "Soleggiato"}
+                      {place.metadata_ai_nascosti?.meteo_consigliato || "Sereno"}
                     </span>
                   </div>
                 </div>
 
                 {/* Social Origin Reel */}
                 {place.social_source_link && (
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
                       <Video className="w-3.5 h-3.5 text-rose-500" />
                       <span>Video originario (Reel / TikTok)</span>
                     </span>
@@ -789,7 +835,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                       href={place.social_source_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1"
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-bold flex items-center gap-1"
                     >
                       <span>Apri Video</span>
                       <ExternalLink className="w-3 h-3" />
@@ -799,8 +845,8 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
 
                 {/* Local Video Attachment */}
                 {place.video_attachment && (
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
-                    <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                    <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
                       <Video className="w-3.5 h-3.5 text-rose-500" />
                       <span>Video locale: {place.video_attachment.title || "Video allegato"}</span>
                     </span>
@@ -814,19 +860,19 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
                 )}
 
                 {/* Coordinate GPS */}
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 text-xs">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Coordinate GPS</span>
-                    <span className="font-mono text-slate-700 font-medium">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 block">Coordinate GPS</span>
+                    <span className="font-mono text-slate-700 dark:text-slate-300 font-medium">
                       {place.coordinate?.lat.toFixed(4)}, {place.coordinate?.lng.toFixed(4)}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleCopyGPS}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors cursor-pointer"
                   >
-                    {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    {copied ? <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3 h-3" />}
                     <span>{copied ? "Copiato" : "Copia"}</span>
                   </button>
                 </div>
@@ -835,7 +881,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
           </div>
 
           {/* Bottom Nav Action */}
-          <div className="p-3.5 border-t border-slate-100 bg-white flex items-center gap-2">
+          <div className="p-3.5 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2">
             <a
               id={`btn-launch-google-maps-${place.id}`}
               href={googleMapsNavUrl}
@@ -850,10 +896,10 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
             <button
               type="button"
               onClick={() => onCenterOnMap(place)}
-              className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+              className="px-3.5 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
               title="Centra sulla Mappa"
             >
-              <Compass className="w-3.5 h-3.5 text-indigo-600" />
+              <Compass className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span className="hidden sm:inline">Mappa</span>
             </button>
           </div>

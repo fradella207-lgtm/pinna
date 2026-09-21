@@ -65,8 +65,8 @@ export function useUserPlaces() {
     // If auth is still loading, wait
     if (authLoading) return;
 
-    // Key for local per-user or guest cache
-    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_guest";
+    // Key for local per-user or offline cache
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_local";
 
     // If not logged in, load from local storage (starts completely empty if nothing saved)
     if (!user) {
@@ -227,7 +227,7 @@ export function useUserPlaces() {
 
   // Explicitly seed sample spots on-demand ONLY if user requests it
   const seedSamplePlaces = async () => {
-    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_guest";
+    const cacheKey = user ? `spotter_places_${user.uid}` : "spotter_saved_places_local";
     setPlaces(INITIAL_PLACES);
     localStorage.setItem(cacheKey, JSON.stringify(INITIAL_PLACES));
 

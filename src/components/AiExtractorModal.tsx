@@ -24,7 +24,7 @@ import {
   Link2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { SavedPlace, CustomList, VideoAttachment } from "../types";
+import { SavedPlace, CustomList, VideoAttachment, TransportMode, getTransportModeMeta } from "../types";
 import { TAXONOMIA_360, getActivityIcon, getActivityColor } from "../data/categories";
 import { compressImageFile } from "../lib/imageCompressor";
 import { 
@@ -41,6 +41,15 @@ import {
   ResolvedGoogleMapsPlace,
   GeoSearchResult 
 } from "../lib/locationSearch";
+
+const TRANSPORT_OPTIONS: { id: TransportMode; label: string; emoji: string }[] = [
+  { id: "auto", label: "Auto", emoji: "🚗" },
+  { id: "moto", label: "Moto", emoji: "🏍️" },
+  { id: "bici", label: "Bici", emoji: "🚲" },
+  { id: "piedi", label: "A piedi", emoji: "🥾" },
+  { id: "camper", label: "Camper", emoji: "🚐" },
+  { id: "treno_bus", label: "Treno/Bus", emoji: "🚆" },
+];
 
 interface AiExtractorModalProps {
   isOpen: boolean;
@@ -74,6 +83,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
   const [category, setCategory] = useState("Seleziona");
   const [contextTag, setContextTag] = useState("");
   const [entityType, setEntityType] = useState<"PUNTO" | "PERCORSO">("PUNTO");
+  const [transportMode, setTransportMode] = useState<TransportMode>("auto");
   
   // Background coordinates (no raw lat/lng exposed to the user)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -122,6 +132,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       setCategory("Seleziona");
       setContextTag("");
       setEntityType("PUNTO");
+      setTransportMode("auto");
       setCoords(null);
       setCoordsSourceName(null);
       setNotes("");
@@ -496,6 +507,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
         nome: cleanName,
         nome_luogo: cleanName,
         tipo_entita: entityType,
+        mezzo_trasporto: transportMode,
         categoria: category,
         categoria_principale: category as any,
         tag_contestuale: effectiveTag,
@@ -559,7 +571,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm"
     >
       <div onClick={onClose} className="absolute inset-0" />
 
@@ -568,18 +580,18 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: "100%", opacity: 0 }}
         transition={{ type: "spring", stiffness: 380, damping: 32 }}
-        className="relative w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] bg-white text-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Header Bar */}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center text-xs font-black">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center text-xs font-black">
                 +
               </span>
               <span>Aggiungi Nuovo Spot</span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Inserisci i dettagli del luogo o del percorso da salvare
             </p>
           </div>
@@ -587,23 +599,23 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 transition-colors"
+            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
 
           {/* Validation Alert */}
           {error && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between">
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs font-semibold flex items-center justify-between">
               <span>{error}</span>
               <button 
                 type="button" 
                 onClick={() => setError(null)}
-                className="text-rose-500 hover:text-rose-800 ml-2"
+                className="text-rose-500 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-200 ml-2 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -611,10 +623,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
           )}
 
           {/* 1. RICERCA RAPIDA INTELLIGENTE & GOOGLE MAPS */}
-          <div className="p-3.5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2.5">
+          <div className="p-3.5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
-              <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5 truncate">
-                <Search className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <label className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5 truncate">
+                <Search className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span className="truncate">Cerca Luogo o Incolla Link Maps</span>
               </label>
 
@@ -623,10 +635,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                   type="button"
                   onClick={handlePasteFromClipboard}
                   disabled={isResolvingMapsLink}
-                  className="text-[11px] text-indigo-700 hover:text-indigo-900 bg-indigo-100/70 hover:bg-indigo-200/80 border border-indigo-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                  className="text-[11px] text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-white bg-indigo-100/70 dark:bg-indigo-900/50 hover:bg-indigo-200/80 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
                   title="Incolla link o testo copiato da Google Maps"
                 >
-                  <Clipboard className="w-3 h-3 text-indigo-600" />
+                  <Clipboard className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                   <span>Incolla Link</span>
                 </button>
 
@@ -634,10 +646,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                   type="button"
                   onClick={handleDetectCurrentLocation}
                   disabled={isLocatingUser || isResolvingMapsLink}
-                  className="text-[11px] text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+                  className="text-[11px] text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200/80 dark:border-emerald-800 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
                   title="Rileva dove ti trovi adesso con il GPS"
                 >
-                  {isLocatingUser ? <Loader2 className="w-3 h-3 animate-spin text-emerald-600" /> : <Compass className="w-3 h-3 text-emerald-600" />}
+                  {isLocatingUser ? <Loader2 className="w-3 h-3 animate-spin text-emerald-600 dark:text-emerald-400" /> : <Compass className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
                   <span>GPS Attuale</span>
                 </button>
               </div>
@@ -661,7 +673,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setMapsResolvedNotice(null)}
-                  className="text-emerald-200 hover:text-white ml-2 text-xs"
+                  className="text-emerald-200 hover:text-white ml-2 text-xs cursor-pointer"
                 >
                   ✕
                 </button>
@@ -674,11 +686,11 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 value={searchLocationQuery}
                 onChange={(e) => handleSearchLocation(e.target.value)}
                 placeholder="Es. 'Passo Giau', 'Chamonix', o incolla 'https://maps.app.goo.gl/...'"
-                className="w-full pl-9 pr-9 py-2 rounded-xl bg-white border border-indigo-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 shadow-xs"
+                className="w-full pl-9 pr-9 py-2 rounded-xl bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-900/80 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-600 shadow-xs"
               />
               <Search className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
               {(isSearchingLocation || isResolvingMapsLink) && (
-                <Loader2 className="w-4 h-4 animate-spin text-indigo-600 absolute right-3 top-2.5" />
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400 absolute right-3 top-2.5" />
               )}
               {searchLocationQuery && !isSearchingLocation && !isResolvingMapsLink && (
                 <button
@@ -689,7 +701,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                     setHasSearched(false);
                     setMapsResolvedNotice(null);
                   }}
-                  className="absolute right-2.5 top-2 p-0.5 text-slate-400 hover:text-slate-600 text-xs"
+                  className="absolute right-2.5 top-2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer"
                 >
                   ✕
                 </button>
@@ -698,36 +710,36 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 
             {/* Suggestions Dropdown */}
             {locationSuggestions.length > 0 && (
-              <div className="rounded-xl border border-indigo-200 divide-y divide-indigo-50 bg-white overflow-hidden max-h-48 overflow-y-auto shadow-lg">
+              <div className="rounded-xl border border-indigo-200 dark:border-slate-700 divide-y divide-indigo-50 dark:divide-slate-800 bg-white dark:bg-slate-800 overflow-hidden max-h-48 overflow-y-auto shadow-lg">
                 {locationSuggestions.map((sug, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => handleSelectLocation(sug)}
-                    className="w-full text-left p-2.5 hover:bg-indigo-50/80 flex items-start gap-2.5 text-xs transition-colors group"
+                    className="w-full text-left p-2.5 hover:bg-indigo-50/80 dark:hover:bg-slate-700/80 flex items-start gap-2.5 text-xs transition-colors group cursor-pointer"
                   >
                     <span className="text-base shrink-0 leading-none mt-0.5">
                       {sug.countryFlag || "📍"}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                        <p className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
                           {sug.name}
                         </p>
                         <div className="flex items-center gap-1 shrink-0">
                           {sug.source === "google_maps" && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold shrink-0">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold shrink-0">
                               Google Maps 📍
                             </span>
                           )}
                           {sug.categoryGuess && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 shrink-0 font-medium">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0 font-medium">
                               {sug.categoryGuess}
                             </span>
                           )}
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                         {sug.city ? `${sug.city}, ` : ""}{sug.country}
                         {sug.lat && sug.lng ? ` • (${sug.lat.toFixed(3)}, ${sug.lng.toFixed(3)})` : ""}
                       </p>
@@ -739,17 +751,17 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 
             {/* Fallback Google Maps Prompt when no results found */}
             {hasSearched && !isSearchingLocation && locationSuggestions.length === 0 && searchLocationQuery.trim().length >= 2 && !coords && (
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 text-amber-900 space-y-2 shadow-xs">
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200/90 dark:border-amber-900/50 text-amber-900 dark:text-amber-200 space-y-2 shadow-xs">
                 <div className="flex items-start gap-2.5">
-                  <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
                     📍
                   </div>
                   <div className="text-xs space-y-1">
-                    <p className="font-bold text-slate-900">
+                    <p className="font-bold text-slate-900 dark:text-white">
                       Nessun risultato diretto trovato per "{searchLocationQuery}"
                     </p>
-                    <p className="text-[11px] text-slate-600 leading-relaxed">
-                      Puoi cercarlo direttamente su <strong>Google Maps</strong>, copiare il link o condividere l'indirizzo per incollarlo qui sopra (riconosce link brevi <code className="bg-amber-100/70 px-1 rounded">maps.app.goo.gl</code> e coordinate GPS).
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Puoi cercarlo direttamente su <strong>Google Maps</strong>, copiare il link o condividere l'indirizzo per incollarlo qui sopra (riconosce link brevi <code className="bg-amber-100/70 dark:bg-amber-900/60 px-1 rounded">maps.app.goo.gl</code> e coordinate GPS).
                     </p>
                   </div>
                 </div>
@@ -759,7 +771,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchLocationQuery)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs shadow-xs transition-colors cursor-pointer"
                   >
                     <span>Cerca "{searchLocationQuery}" su Google Maps</span>
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -770,9 +782,9 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 
             {/* Coordinates Status Confirmation Badge */}
             {coords && (
-              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800">
+              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
                 <div className="flex items-center gap-1.5 truncate">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span className="font-semibold truncate">
                     {coordsSourceName || `GPS: ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`}
                   </span>
@@ -781,7 +793,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                   href={`https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-emerald-700 hover:text-emerald-900 font-bold shrink-0 underline ml-2"
+                  className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 font-bold shrink-0 underline ml-2"
                 >
                   Verifica su Maps ↗
                 </a>
@@ -791,22 +803,22 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 
           {/* 2. Nome Spot */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
               <span>Nome dello Spot o Luogo *</span>
-              <span className="text-[10px] text-slate-400 font-normal">Obbligatorio</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Obbligatorio</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Es. Passo Giau, Rifugio Lagazuoi, Borgo di Civita..."
-              className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:bg-white dark:focus:bg-slate-800 transition-all"
             />
           </div>
 
           {/* 3. Città o Zona & Paese */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-800">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
               Città o Zona
             </label>
             <input
@@ -821,12 +833,12 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 }
               }}
               placeholder="Es. Cortina d'Ampezzo (BL), Passo del Furka (Svizzera), Chamonix..."
-              className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 font-medium text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:bg-white dark:focus:bg-slate-800 transition-all"
             />
 
             {/* Country Selector Quick Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 pb-0.5">
-              <span className="text-[10px] font-bold text-slate-400 shrink-0 uppercase tracking-wider flex items-center gap-1 mr-1">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 shrink-0 uppercase tracking-wider flex items-center gap-1 mr-1">
                 <Globe className="w-3 h-3 text-sky-500" />
                 <span>Stato:</span>
               </span>
@@ -837,10 +849,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                     key={countryName}
                     type="button"
                     onClick={() => setSelectedCountry(countryName)}
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold shrink-0 transition-all flex items-center gap-1 ${
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
                       isSel
-                        ? "bg-slate-900 text-white shadow-xs"
-                        : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
                     }`}
                   >
                     <span>{getCountryFlag(countryName)}</span>
@@ -856,7 +868,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             
             {/* Categoria Dropdown */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
                 <span>Categoria *</span>
                 {category !== "Seleziona" && (
                   <span 
@@ -877,8 +889,8 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 }}
                 className={`w-full px-3 py-2.5 rounded-2xl border text-xs font-bold transition-all focus:outline-none focus:ring-2 ${
                   category === "Seleziona"
-                    ? "bg-amber-50/70 border-amber-300 text-amber-900 focus:ring-amber-500"
-                    : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-slate-900 focus:bg-white"
+                    ? "bg-amber-50/70 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 focus:ring-amber-500"
+                    : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-slate-900 dark:focus:ring-slate-400 focus:bg-white dark:focus:bg-slate-800"
                 }`}
               >
                 <option value="Seleziona">-- Seleziona Categoria --</option>
@@ -892,17 +904,17 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
 
             {/* Tipo di Località: Punto Singolo vs Percorso */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-800">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
                 Tipologia Spot
               </label>
-              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/80">
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setEntityType("PUNTO")}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     entityType === "PUNTO"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
+                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   <MapPin className="w-3.5 h-3.5 text-rose-500" />
@@ -911,10 +923,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setEntityType("PERCORSO")}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     entityType === "PERCORSO"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
+                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   <Mountain className="w-3.5 h-3.5 text-amber-600" />
@@ -924,11 +936,39 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             </div>
           </div>
 
-          {/* 4. Tag Contestuali (Pillole rapide quando la categoria è selezionata) */}
+          {/* 4. Mezzo di Trasporto Consigliato */}
+          <div className="space-y-1.5 pt-1">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+              <span>Mezzo consigliato / attività</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-400 font-normal">Come raggiungerlo o viverlo</span>
+            </label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+              {TRANSPORT_OPTIONS.map((opt) => {
+                const isSelected = transportMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setTransportMode(opt.id)}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all border cursor-pointer ${
+                      isSelected
+                        ? "bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 shadow-xs ring-1 ring-indigo-500"
+                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/70"
+                    }`}
+                  >
+                    <span className="text-base">{opt.emoji}</span>
+                    <span className="text-[11px] truncate">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5. Tag Contestuali (Pillole rapide quando la categoria è selezionata) */}
           {selectedTaxonomy && (
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-              <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                <Tag className="w-3 h-3 text-slate-500" />
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 space-y-2">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Tag className="w-3 h-3 text-slate-500 dark:text-slate-400" />
                 <span>Tag Specifico ({category})</span>
               </span>
               
@@ -940,10 +980,10 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                       key={tag}
                       type="button"
                       onClick={() => setContextTag(isSelected ? "" : tag)}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all ${
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-slate-900 text-white shadow-xs"
-                          : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                          ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs"
+                          : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600"
                       }`}
                     >
                       {tag}
@@ -954,11 +994,11 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             </div>
           )}
 
-          {/* 5. Sezione Foto e Media */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+          {/* 6. Sezione Foto e Media */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span>Foto del Luogo ({attachedPhotos.length})</span>
               </span>
 
@@ -966,7 +1006,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowImageUrlField(!showImageUrlField)}
-                  className="text-[11px] text-blue-600 hover:underline font-semibold"
+                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
                 >
                   {showImageUrlField ? "Chiudi Link" : "+ Link Web"}
                 </button>
@@ -975,9 +1015,9 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                   type="button"
                   onClick={() => photoInputRef.current?.click()}
                   disabled={isUploadingPhoto}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  {isUploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3 text-indigo-600" />}
+                  {isUploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />}
                   <span>Carica Foto</span>
                 </button>
               </div>
@@ -990,12 +1030,12 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                   value={imageUrlInput}
                   onChange={(e) => setImageUrlInput(e.target.value)}
                   placeholder="Incolla URL immagine online..."
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className="flex-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400"
                 />
                 <button
                   type="button"
                   onClick={handleAddImageUrl}
-                  className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold"
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
                 >
                   Aggiungi
                 </button>
@@ -1008,7 +1048,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                   <div 
                     key={idx} 
                     className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                      coverPhotoIndex === idx ? "border-amber-500 shadow-xs" : "border-slate-200"
+                      coverPhotoIndex === idx ? "border-amber-500 shadow-xs" : "border-slate-200 dark:border-slate-700"
                     }`}
                   >
                     <img src={photo} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
@@ -1022,7 +1062,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                         <button
                           type="button"
                           onClick={() => setCoverPhotoIndex(idx)}
-                          className="p-1 rounded-md bg-white text-slate-900 text-[9px] font-bold"
+                          className="p-1 rounded-md bg-white text-slate-900 text-[9px] font-bold cursor-pointer"
                           title="Imposta come copertina"
                         >
                           ⭐
@@ -1031,7 +1071,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemovePhoto(idx)}
-                        className="p-1 rounded-md bg-rose-600 text-white text-[9px]"
+                        className="p-1 rounded-md bg-rose-600 text-white text-[9px] cursor-pointer"
                         title="Rimuovi foto"
                       >
                         <X className="w-3 h-3" />
@@ -1043,25 +1083,25 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             ) : (
               <div 
                 onClick={() => photoInputRef.current?.click()}
-                className="py-3 px-4 rounded-xl border border-dashed border-slate-300 hover:border-slate-400 bg-white/60 hover:bg-white flex items-center justify-center gap-2 text-slate-500 hover:text-slate-800 cursor-pointer transition-all text-xs"
+                className="py-3 px-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 bg-white/60 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer transition-all text-xs"
               >
-                <ImageIcon className="w-4 h-4 text-slate-400" />
+                <ImageIcon className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                 <span>Tocca per aggiungere foto dal tuo dispositivo o fotocamera</span>
               </div>
             )}
           </div>
 
-          {/* 6. Video o Link Social (Facoltativo) */}
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+          {/* 7. Video o Link Social (Facoltativo) */}
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5 text-rose-500" />
                 <span>Link Social o Video (Facoltativo)</span>
               </span>
               <button
                 type="button"
                 onClick={() => setShowVideoField(!showVideoField)}
-                className="text-[11px] text-blue-600 hover:underline font-semibold"
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
               >
                 {showVideoField ? "Nascondi" : "+ Aggiungi Link/Video"}
               </button>
@@ -1075,12 +1115,12 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                     value={videoLinkInput}
                     onChange={(e) => setVideoLinkInput(e.target.value)}
                     placeholder="Link Reel, TikTok o YouTube..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400"
                   />
                   <button
                     type="button"
                     onClick={() => videoInputRef.current?.click()}
-                    className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold text-xs flex items-center gap-1"
+                    className="px-3 py-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 font-semibold text-xs flex items-center gap-1 cursor-pointer"
                     title="Carica file video"
                   >
                     <Upload className="w-3 h-3 text-rose-500" />
@@ -1089,15 +1129,15 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
                 </div>
 
                 {videoFileAttachment && (
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[11px] font-semibold">
                     <span className="flex items-center gap-1">
-                      <Play className="w-3 h-3 text-emerald-600" />
+                      <Play className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                       <span>Video allegato: {videoFileAttachment.title}</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => setVideoFileAttachment(null)}
-                      className="text-rose-600 hover:text-rose-800"
+                      className="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-200 cursor-pointer"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -1107,9 +1147,9 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             )}
           </div>
 
-          {/* 7. Note Personali & Consigli */}
+          {/* 8. Note Personali & Consigli */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-800">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
               Note Personali o Consigli
             </label>
             <textarea
@@ -1117,28 +1157,28 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Consigli pratici, orario migliore, dove parcheggiare o particolarità..."
-              className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white resize-none transition-all"
+              className="w-full p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:bg-white dark:focus:bg-slate-800 resize-none transition-all"
             />
           </div>
 
-          {/* 8. Dettagli Rapidi: Durata, Momento e Stato */}
+          {/* 9. Dettagli Rapidi: Durata, Momento e Stato */}
           <div className="grid grid-cols-3 gap-2.5 pt-1">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-700 block">Durata (min)</label>
+              <label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">Durata (min)</label>
               <input
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:bg-white dark:focus:bg-slate-800"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-700 block">Momento Ideale</label>
+              <label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">Momento Ideale</label>
               <select
                 value={moment}
                 onChange={(e) => setMoment(e.target.value)}
-                className="w-full px-2 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white"
+                className="w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:bg-white dark:focus:bg-slate-800"
               >
                 <option value="Mattina presto">Mattina presto</option>
                 <option value="Mattina">Mattina</option>
@@ -1150,17 +1190,17 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-700 block">Stato Spot</label>
+              <label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">Stato Spot</label>
               <button
                 type="button"
                 onClick={() => setVisited(!visited)}
-                className={`w-full py-2 px-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 border ${
+                className={`w-full py-2 px-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 border cursor-pointer ${
                   visited 
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700" 
-                    : "bg-slate-50 border-slate-200 text-slate-600"
+                    ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300" 
+                    : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                 }`}
               >
-                {visited ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <Clock className="w-3 h-3 text-slate-400" />}
+                {visited ? <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> : <Clock className="w-3 h-3 text-slate-400" />}
                 <span>{visited ? "Visitato" : "Da fare"}</span>
               </button>
             </div>
@@ -1172,7 +1212,7 @@ export const AiExtractorModal: React.FC<AiExtractorModalProps> = ({
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all disabled:opacity-50"
+              className="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-sm shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isSaving ? (
                 <>

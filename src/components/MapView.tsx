@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { SavedPlace } from "../types";
-import { getActivityColor } from "../data/categories";
+import { getActivityColor, getTransportModeMeta } from "../data/categories";
 import { 
   Layers, 
   MapPin, 
@@ -56,9 +56,17 @@ export const MapView: React.FC<MapViewProps> = ({
       zoom: 8,
       minZoom: 2, // Prevent zooming out beyond world extent
       maxBounds: worldBounds, // Strictly lock movement within earth coordinates
-      maxBoundsViscosity: 0.8, // Smooth bounce preventing empty black dragging
+      maxBoundsViscosity: 0.85, // Smooth bounce preventing empty black dragging
       zoomControl: false,
       worldCopyJump: false,
+      preferCanvas: true, // Hardware acceleration: renders vector routes on Canvas
+      wheelDebounceTime: 30,
+      wheelPxPerZoomLevel: 100,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      markerZoomAnimation: true,
+      zoomSnap: 0.5,
+      zoomDelta: 0.5,
     });
 
     // Layer Group for Base Tiles
@@ -219,7 +227,8 @@ export const MapView: React.FC<MapViewProps> = ({
       // --- 2. PIN MARKER ---
       const isSelected = selectedPlace?.id === place.id;
       const pinSize = isSelected ? 42 : 36;
-      const iconLetter = place.tipo_entita === "PERCORSO" ? "⛰️" : "📍";
+      const transportMeta = getTransportModeMeta(place.mezzo_trasporto);
+      const iconLetter = transportMeta?.emoji || (place.tipo_entita === "PERCORSO" ? "⛰️" : "📍");
 
       const customHtml = `
         <div style="position: relative; width: ${pinSize}px; height: ${pinSize + 8}px; display: flex; align-items: center; justify-content: center; cursor: pointer; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); transform: ${isSelected ? "scale(1.15)" : "scale(1)"}; transition: transform 0.2s ease;">

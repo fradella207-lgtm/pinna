@@ -220,3 +220,77 @@ export const GENRE_METADATA: Record<
   },
 };
 
+export type TransportMode = "auto" | "moto" | "bici" | "piedi" | "camper" | "treno_bus";
+
+export interface TransportModeMeta {
+  key: string;
+  label: string;
+  shortLabel: string;
+  emoji: string;
+  color: string;
+  badgeClass: string;
+}
+
+export const TRANSPORT_MODES: TransportModeMeta[] = [
+  {
+    key: "auto",
+    label: "In Auto",
+    shortLabel: "Auto",
+    emoji: "🚗",
+    color: "#3b82f6",
+    badgeClass: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
+  {
+    key: "moto",
+    label: "In Moto",
+    shortLabel: "Moto",
+    emoji: "🏍️",
+    color: "#f59e0b",
+    badgeClass: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  },
+  {
+    key: "bici",
+    label: "In Bici / MTB",
+    shortLabel: "Bici",
+    emoji: "🚲",
+    color: "#10b981",
+    badgeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  },
+  {
+    key: "piedi",
+    label: "A Piedi / Trekking",
+    shortLabel: "A piedi",
+    emoji: "🥾",
+    color: "#84cc16",
+    badgeClass: "bg-lime-500/15 text-lime-400 border-lime-500/30",
+  },
+  {
+    key: "camper",
+    label: "Camper / Van",
+    shortLabel: "Camper",
+    emoji: "🚐",
+    color: "#a855f7",
+    badgeClass: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  },
+  {
+    key: "treno_bus",
+    label: "Mezzi Pubblici",
+    shortLabel: "Mezzi pubbl.",
+    emoji: "🚆",
+    color: "#06b6d4",
+    badgeClass: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  },
+];
+
+export function getTransportModeMeta(mode?: string): TransportModeMeta | null {
+  if (!mode) return null;
+  const m = mode.toLowerCase();
+  if (m.includes("auto") || m.includes("macchina")) return TRANSPORT_MODES[0];
+  if (m.includes("moto")) return TRANSPORT_MODES[1];
+  if (m.includes("bici") || m.includes("mtb") || m.includes("ciclo")) return TRANSPORT_MODES[2];
+  if (m.includes("pied") || m.includes("trek") || m.includes("cammin") || m.includes("sentier")) return TRANSPORT_MODES[3];
+  if (m.includes("camper") || m.includes("van") || m.includes("roulotte")) return TRANSPORT_MODES[4];
+  if (m.includes("treno") || m.includes("bus") || m.includes("navetta") || m.includes("pubblic")) return TRANSPORT_MODES[5];
+  return null;
+}
+

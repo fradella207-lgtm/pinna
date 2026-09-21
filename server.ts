@@ -47,6 +47,15 @@ Assegna una Categoria Principale e un Tag Contestuale tra le seguenti:
 5. Food & Drink (Ristoranti, Agriturismi, Rifugi, Bar & Aperitivi, Street Food)
 6. Leisure & Social (Piazze, Rooftop, Luoghi Insoliti / Secret Spots, Eventi & Mercatini)
 
+--- MEZZO DI TRASPORTO PER L'ATTIVITÀ ---
+Individua il mezzo di trasporto ideale o necessario tra:
+- "auto": percorsi automobilistici, road trip, ristoranti o spot raggiungibili in auto
+- "moto": passi montani, tornanti e strade per motociclisti
+- "bici": piste ciclabili, percorsi MTB o gravel
+- "piedi": sentieri, trekking, camminate, escursioni a piedi, borghi pedonali
+- "camper": aree camper, sosta van, itinerari vanlife
+- "treno_bus": trenini panoramici, funivie, mezzi pubblici
+
 --- REGOLE RIGIDE DI ESTRAZIONE E VERIFICA ---
 1. SEARCH QUERY: Crea la stringa di ricerca ideale per Google Maps (es. "Nome Specifico + Località/Comune").
 2. CONFIDENZA GEOGRAFICA:
@@ -55,8 +64,9 @@ Assegna una Categoria Principale e un Tag Contestuale tra le seguenti:
 3. TIPO ENTITÀ:
    - "PUNTO" per luoghi specifici (ristorante, museo, belvedere, boutique, monumento).
    - "PERCORSO" per itinerari lineari (passo montano, strada panoramica, sentiero, pista ciclabile).
-4. SINTESI MINIMAL: Massimo 2 frasi. Cattura l'essenza e i consigli pratici menzionati (es. "Miglior spot per il tramonto. Parcheggio limitato").
-5. OUTPUT: Rispondi ESCLUSIVAMENTE con un oggetto JSON valido. Nessun testo introduttivo/conclusivo, niente formattazione markdown (no \`\`\`json).
+4. MEZZO TRASPORTO: assegna uno tra "auto", "moto", "bici", "piedi", "camper", "treno_bus".
+5. SINTESI MINIMAL: Massimo 2 frasi. Cattura l'essenza e i consigli pratici menzionati (es. "Miglior spot per il tramonto. Parcheggio limitato").
+6. OUTPUT: Rispondi ESCLUSIVAMENTE con un oggetto JSON valido. Nessun testo introduttivo/conclusivo, niente formattazione markdown (no \`\`\`json).
 
 --- STRUTTURA JSON DA RISPETTARE ---
 {
@@ -65,6 +75,7 @@ Assegna una Categoria Principale e un Tag Contestuale tra le seguenti:
   "tipo_entita": "PUNTO",
   "categoria_principale": "Food & Drink",
   "tag_contestuale": "Rifugi",
+  "mezzo_trasporto": "piedi",
   "badge_rapidi": ["Vista Panoramica", "Cucina Tipica", "In Quota"],
   "sintesi": "Rifugio a 2752m con vista sulle Dolomiti. Raggiungibile in funivia dal Passo Falzarego o a piedi.",
   "dettagli_algoritmo": {
@@ -124,6 +135,13 @@ function hashPassword(password: string, salt: string): string {
   return crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
 }
 
+function getCanonicalServerUid(email: string): string {
+  const clean = email.trim().toLowerCase();
+  const cleanPrefix = clean.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+  const hash = crypto.createHash("sha256").update(clean).digest("hex").slice(0, 12);
+  return `usr_${cleanPrefix}_${hash}`;
+}
+
 // 1. User Registration
 app.post("/api/auth/register", (req, res) => {
   try {
@@ -137,10 +155,30 @@ app.post("/api/auth/register", (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
     const users = loadUsers();
+    const canonicalUid = getCanonicalServerUid(cleanEmail);
 
     // Check if user already exists
     const existing = Object.values(users).find(u => u.email.toLowerCase() === cleanEmail);
     if (existing) {
+      // If user had Google login but no password set, set password on existing account
+      if (!existing.passwordHash) {
+        const salt = crypto.randomBytes(16).toString("hex");
+        existing.passwordHash = hashPassword(password, salt);
+        existing.salt = salt;
+        if (displayName && !existing.displayName) existing.displayName = displayName;
+        users[existing.uid] = existing;
+        saveUsers(users);
+        return res.json({
+          success: true,
+          user: {
+            uid: existing.uid,
+            email: existing.email,
+            displayName: existing.displayName,
+            photoURL: existing.photoURL,
+          },
+        });
+      }
+
       return res.status(409).json({
         error: "email-already-in-use",
         message: "Questa email è già registrata. Clicca su 'Accedi' per entrare.",
@@ -149,7 +187,7 @@ app.post("/api/auth/register", (req, res) => {
 
     const salt = crypto.randomBytes(16).toString("hex");
     const passwordHash = hashPassword(password, salt);
-    const uid = "user_" + crypto.randomBytes(8).toString("hex");
+    const uid = canonicalUid;
 
     const newUser: StoredUser = {
       uid,
@@ -234,19 +272,19 @@ app.post("/api/auth/google", (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
     const users = loadUsers();
+    const canonicalUid = getCanonicalServerUid(cleanEmail);
     let user = Object.values(users).find(u => u.email.toLowerCase() === cleanEmail);
 
     if (!user) {
-      const uid = "g_" + crypto.randomBytes(8).toString("hex");
       user = {
-        uid,
+        uid: canonicalUid,
         email: cleanEmail,
         displayName: displayName || cleanEmail.split("@")[0],
         photoURL: photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
         createdAt: new Date().toISOString(),
         provider: "google",
       };
-      users[uid] = user;
+      users[canonicalUid] = user;
       saveUsers(users);
     } else {
       if (displayName && !user.displayName) user.displayName = displayName;
@@ -860,6 +898,8 @@ app.post("/api/extract", async (req, res) => {
         query_immagine_copertina: `${placeName} panorama ${cittaOrZona}`,
         colore_badge_consigliato: selectedBadgeColor,
       },
+      mezzo_trasporto: parsed.mezzo_trasporto || (mainCategory === "Drive & Ride" ? "moto" : mainCategory === "Active & Sport" ? "piedi" : "auto"),
+      mezzi_consigliati: [parsed.mezzo_trasporto || (mainCategory === "Drive & Ride" ? "moto" : "auto")],
       metadata_ai_nascosti: {
         durata_stimata_minuti: parsed.dettagli_algoritmo?.durata_minuti || 90,
         momento_ideale: parsed.dettagli_algoritmo?.momento_ideale || "Giorno",
@@ -1104,6 +1144,8 @@ async function generateIntelligentDynamicExtraction(text: string, videoLink?: st
       colore_badge_consigliato: badgeColor,
       cover_image_url: coverUrl,
     },
+    mezzo_trasporto: categoria_principale === "Drive & Ride" ? "moto" : categoria_principale === "Active & Sport" ? "piedi" : lower.includes("bici") ? "bici" : "auto",
+    mezzi_consigliati: [categoria_principale === "Drive & Ride" ? "moto" : categoria_principale === "Active & Sport" ? "piedi" : "auto"],
     metadata_ai_nascosti: {
       durata_stimata_minuti: durata,
       momento_ideale: momento,

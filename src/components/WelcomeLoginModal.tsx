@@ -36,7 +36,6 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
     signInWithEmail, 
     signUpWithEmail,
     sendPasswordReset,
-    signInAsGuest,
     user 
   } = useAuth();
 
@@ -129,18 +128,6 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
     }
   };
 
-  const handleGuest = async () => {
-    setLoading(true);
-    try {
-      await signInAsGuest();
-      onClose();
-    } catch {
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <motion.div
       id="welcome-login-screen"
@@ -154,7 +141,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 15 }}
         transition={{ type: "spring", stiffness: 350, damping: 28 }}
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden my-auto"
+        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden my-auto"
       >
         {/* Visual Hero Header */}
         <div className="relative h-32 bg-slate-950 p-6 flex flex-col justify-between overflow-hidden">
@@ -194,7 +181,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
         </div>
 
         {/* Dynamic Rotating Punchline Section */}
-        <div className="px-5 py-2 bg-slate-50 border-b border-slate-100 shrink-0">
+        <div className="px-5 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="min-h-[34px] flex items-center justify-center text-center">
             <AnimatePresence mode="wait">
               <motion.p
@@ -203,7 +190,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
                 transition={{ duration: 0.22 }}
-                className="text-xs font-semibold text-slate-700 leading-snug"
+                className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-snug"
               >
                 "{HERO_TAGLINES[taglineIndex]}"
               </motion.p>
@@ -212,7 +199,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
         </div>
 
         {/* Two-Tab Switcher: Accedi vs Registrati */}
-        <div className="p-2 mx-5 mt-4 bg-slate-100 rounded-2xl flex items-center gap-1">
+        <div className="p-2 mx-5 mt-4 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center gap-1">
           <button
             type="button"
             onClick={() => {
@@ -221,8 +208,8 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
               mode === "login"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             Accedi
@@ -235,8 +222,8 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
               mode === "register"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
             Crea Account
@@ -247,13 +234,13 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
         <div className="p-5 sm:p-6 pt-3 space-y-4 max-h-[58vh] overflow-y-auto">
           {/* Feedback messages */}
           {error && (
-            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-start gap-2">
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-semibold flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed">{error}</div>
               <button
                 type="button"
                 onClick={() => setError(null)}
-                className="text-rose-500 hover:text-rose-800 text-xs font-bold shrink-0 ml-1"
+                className="text-rose-500 hover:text-rose-800 dark:hover:text-rose-300 text-xs font-bold shrink-0 ml-1"
               >
                 ✕
               </button>
@@ -261,7 +248,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
           )}
 
           {successMessage && (
-            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-start gap-2">
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div className="flex-1">{successMessage}</div>
             </div>
@@ -271,7 +258,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
           <form onSubmit={handleClassicSubmit} className="space-y-3">
             {mode === "register" && (
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-700 block">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
                   Il tuo Nome o Nickname
                 </label>
                 <div className="relative">
@@ -281,14 +268,14 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Es. Mario Rossi"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-white focus:bg-white dark:focus:bg-slate-800 transition-all"
                   />
                 </div>
               </div>
             )}
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-700 block">
+              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
                 Email
               </label>
               <div className="relative">
@@ -300,7 +287,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
                   placeholder="La tua email (es. mario@gmail.com)"
                   required
                   autoFocus
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-white focus:bg-white dark:focus:bg-slate-800 transition-all"
                 />
               </div>
             </div>
@@ -308,14 +295,14 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             {mode !== "forgot" && (
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-700 block">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
                     Password {mode === "register" && <span className="text-slate-400 font-normal">(min. 6 caratteri)</span>}
                   </label>
                   {mode === "login" && (
                     <button
                       type="button"
                       onClick={() => setMode("forgot")}
-                      className="text-[10px] text-slate-500 hover:text-slate-900 font-medium"
+                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium"
                     >
                       Password dimenticata?
                     </button>
@@ -330,12 +317,12 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
                     placeholder="La tua password"
                     required
                     minLength={6}
-                    className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition-all"
+                    className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-white focus:bg-white dark:focus:bg-slate-800 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                     title={showPassword ? "Nascondi password" : "Mostra password"}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -345,15 +332,15 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             )}
 
             {mode === "forgot" && (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-1">
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
                 <p className="font-semibold">Recupero password rapido</p>
-                <p className="text-slate-600">
+                <p className="text-slate-600 dark:text-slate-400">
                   Inserisci l'email del tuo account e ti invieremo un link o codice per reimpostare la tua password.
                 </p>
                 <button
                   type="button"
                   onClick={() => setMode("login")}
-                  className="text-amber-800 font-bold underline pt-1 block"
+                  className="text-amber-800 dark:text-amber-300 font-bold underline pt-1 block"
                 >
                   Torna al login classico
                 </button>
@@ -364,7 +351,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 mt-2 cursor-pointer"
+              className="w-full py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-950 font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 mt-2 cursor-pointer"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -385,8 +372,8 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
 
           {/* Separatore visivo */}
           <div className="relative flex items-center justify-center my-1">
-            <div className="border-t border-slate-200 w-full" />
-            <span className="bg-white px-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
+            <span className="bg-white dark:bg-slate-900 px-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0">
               oppure
             </span>
           </div>
@@ -396,7 +383,7 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-2xs flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer hover:border-slate-300"
+            className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs shadow-2xs flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer hover:border-slate-300 dark:hover:border-slate-600"
           >
             <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -407,22 +394,9 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
             <span>Continua con Google</span>
           </button>
 
-          {/* Guest option */}
-          <div className="pt-2 border-t border-slate-100 text-center">
-            <button
-              type="button"
-              onClick={handleGuest}
-              disabled={loading}
-              className="text-xs text-slate-500 hover:text-slate-900 font-semibold inline-flex items-center gap-1.5 transition-colors py-1 px-3 rounded-lg hover:bg-slate-50 cursor-pointer"
-            >
-              <Compass className="w-3.5 h-3.5 text-slate-400" />
-              <span>Esplora come ospite (senza account)</span>
-            </button>
-          </div>
-
           {/* Note */}
-          <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <div className="pt-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 text-center">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>I tuoi spot sono privati e protetti sul database Cloud</span>
           </div>
         </div>

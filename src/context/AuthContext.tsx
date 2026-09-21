@@ -97,6 +97,32 @@ async function sha256(str: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Deterministic canonical UID generator per email address:
+// Guarantees that google login, instant email login, and password registration ALWAYS share the exact same user ID and place collection
+export async function getCanonicalUid(email: string): Promise<string> {
+  const clean = email.trim().toLowerCase();
+  const hash = await sha256(clean);
+  const cleanPrefix = clean.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+  return `usr_${cleanPrefix}_${hash.slice(0, 12)}`;
+}
+
+// Helper to seamlessly copy legacy places if any exist under another UID
+async function migrateUserPlacesIfAny(fromUid: string, toUid: string) {
+  if (!fromUid || !toUid || fromUid === toUid) return;
+  try {
+    const fromCol = collection(db, "users", fromUid, "places");
+    const snap = await getDocs(fromCol);
+    if (!snap.empty) {
+      const toCol = collection(db, "users", toUid, "places");
+      for (const docSnap of snap.docs) {
+        await setDoc(doc(toCol, docSnap.id), docSnap.data(), { merge: true });
+      }
+    }
+  } catch (err) {
+    console.warn("Places migration notice:", err);
+  }
+}
+
 // Decode Google Identity Services JWT payload safely
 function parseGoogleJwt(token: string) {
   try {
@@ -130,8 +156,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure no leftover hardcoded developer email automatically logs in
-        if (parsed?.email === "dellaquila037@gmail.com") {
+        // Ensure no leftover hardcoded developer email or anonymous/guest account automatically logs in
+        if (
+          parsed?.email === "dellaquila037@gmail.com" ||
+          parsed?.isAnonymous ||
+          parsed?.uid?.startsWith("guest_") ||
+          !parsed?.email
+        ) {
           localStorage.removeItem(STORAGE_KEY);
           return null;
         }
@@ -249,8 +280,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const cleanEmail = payload.email.trim().toLowerCase();
+    const canonicalUid = await getCanonicalUid(cleanEmail);
+    const legacyGsiUid = "g_" + (payload.sub || btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14));
+
+    // Migrate any spots from legacy UID to canonical UID
+    await migrateUserPlacesIfAny(legacyGsiUid, canonicalUid);
+
     const authUser: AuthUser = {
-      uid: "g_" + (payload.sub || btoa(cleanEmail).replace(/[^a-zA-Z0-9]/g, "").slice(0, 14)),
+      uid: canonicalUid,
       email: cleanEmail,
       displayName: payload.name || cleanEmail.split("@")[0],
       photoURL: payload.picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
@@ -284,9 +321,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("Inserisci un indirizzo email valido.");
     }
 
-    // Deterministic UID from email hash so spots are permanently tied to this user across all devices/sessions
-    const emailHash = await sha256(cleanEmail);
-    const uid = "usr_" + emailHash.substring(0, 16);
+    // Deterministic UID from email so spots are permanently unified across all devices/sessions
+    const canonicalUid = await getCanonicalUid(cleanEmail);
+    const legacyHash = await sha256(cleanEmail);
+    const legacyUid = "usr_" + legacyHash.substring(0, 16);
+
+    // Migrate legacy places if any
+    await migrateUserPlacesIfAny(legacyUid, canonicalUid);
 
     const rawPrefix = cleanEmail.split("@")[0].replace(/[._-]/g, " ");
     const defaultName = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
@@ -297,7 +338,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let finalAvatar = defaultAvatar;
 
     try {
-      const userDocRef = doc(db, "users", uid);
+      const userDocRef = doc(db, "users", canonicalUid);
       const snap = await getDoc(userDocRef);
       if (snap.exists()) {
         const data = snap.data();
@@ -309,7 +350,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const authUser: AuthUser = {
-      uid,
+      uid: canonicalUid,
       email: cleanEmail,
       displayName: finalName,
       photoURL: finalAvatar,
@@ -336,23 +377,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsWelcomeModalOpen(false);
   };
 
-  // Google Sign In via standard popup or GSI token client
   // Google Sign In via standard Firebase Auth popup
   const signInWithGoogle = async () => {
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       if (cred?.user) {
         const u = cred.user;
+        const cleanEmail = (u.email || "").trim().toLowerCase();
+        const canonicalUid = await getCanonicalUid(cleanEmail);
+
+        // Migrate any spots from Firebase u.uid to canonicalUid
+        await migrateUserPlacesIfAny(u.uid, canonicalUid);
+
         const authUser: AuthUser = {
-          uid: u.uid,
-          email: u.email || "",
-          displayName: u.displayName || (u.email ? u.email.split("@")[0] : "Utente Google"),
+          uid: canonicalUid,
+          email: cleanEmail,
+          displayName: u.displayName || (cleanEmail ? cleanEmail.split("@")[0] : "Utente Google"),
           photoURL: u.photoURL || null,
           providerId: "google.com",
         };
         localStorage.removeItem("pinna_explicitly_logged_out");
         persistUser(authUser);
         await syncProfileToFirestore(authUser);
+
+        try {
+          await fetch("/api/auth/google", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: authUser.email,
+              displayName: authUser.displayName,
+              photoURL: authUser.photoURL,
+            }),
+          });
+        } catch {}
+
         setIsAuthModalOpen(false);
         setIsWelcomeModalOpen(false);
       }
@@ -377,18 +436,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("Inserisci un indirizzo email valido.");
     }
 
-    // A. Check Firestore directly (works on Vercel and all hosts)
+    const canonicalUid = await getCanonicalUid(cleanEmail);
+
+    // A. Check canonical user doc in Firestore directly
     try {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("email", "==", cleanEmail));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const userData = snap.docs[0].data();
+      const directDocRef = doc(db, "users", canonicalUid);
+      const directSnap = await getDoc(directDocRef);
+      if (directSnap.exists()) {
+        const userData = directSnap.data();
         if (userData.passwordHash && userData.salt) {
           const computedHash = await sha256(pass + userData.salt);
           if (computedHash === userData.passwordHash) {
             const authUser: AuthUser = {
-              uid: snap.docs[0].id,
+              uid: canonicalUid,
+              email: userData.email || cleanEmail,
+              displayName: userData.displayName || cleanEmail.split("@")[0],
+              photoURL: userData.photoURL || null,
+              providerId: "password",
+            };
+            localStorage.removeItem("pinna_explicitly_logged_out");
+            persistUser(authUser);
+            setIsAuthModalOpen(false);
+            setIsWelcomeModalOpen(false);
+            return;
+          } else {
+            throw new Error("Password non corretta. Verifica e riprova.");
+          }
+        }
+      }
+
+      // Check by email query for legacy docs
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const legacyDoc = snap.docs[0];
+        const userData = legacyDoc.data();
+        if (userData.passwordHash && userData.salt) {
+          const computedHash = await sha256(pass + userData.salt);
+          if (computedHash === userData.passwordHash) {
+            // Migrate legacy places and user doc to canonicalUid
+            await migrateUserPlacesIfAny(legacyDoc.id, canonicalUid);
+            await setDoc(doc(db, "users", canonicalUid), {
+              ...userData,
+              userId: canonicalUid,
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
+
+            const authUser: AuthUser = {
+              uid: canonicalUid,
               email: userData.email || cleanEmail,
               displayName: userData.displayName || cleanEmail.split("@")[0],
               photoURL: userData.photoURL || null,
@@ -420,7 +516,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await res.json();
         if (data.success && data.user) {
           const authUser: AuthUser = {
-            uid: data.user.uid,
+            uid: canonicalUid,
             email: data.user.email,
             displayName: data.user.displayName,
             photoURL: data.user.photoURL,
@@ -440,9 +536,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const cred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
       if (cred.user) {
+        await migrateUserPlacesIfAny(cred.user.uid, canonicalUid);
         const authUser: AuthUser = {
-          uid: cred.user.uid,
-          email: cred.user.email,
+          uid: canonicalUid,
+          email: cred.user.email || cleanEmail,
           displayName: cred.user.displayName || cleanEmail.split("@")[0],
           photoURL: cred.user.photoURL,
           providerId: "password",
@@ -463,7 +560,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     throw new Error("Nessun account trovato con questa email. Clicca su 'Crea Account' per registrarti.");
   };
 
-  // 3. Email & Password Sign Up
+  // 3. Email & Password Sign Up (Guaranteed ZERO DUPLICATES)
   const signUpWithEmail = async (email: string, pass: string, displayName: string) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = displayName.trim() || cleanEmail.split("@")[0];
@@ -475,13 +572,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("La password deve contenere almeno 6 caratteri.");
     }
 
-    // Check if user already exists in Firestore
+    const canonicalUid = await getCanonicalUid(cleanEmail);
+
+    // Check if user already exists in Firestore under canonical UID or email query
     try {
+      const canonicalDoc = await getDoc(doc(db, "users", canonicalUid));
+      if (canonicalDoc.exists()) {
+        const existingData = canonicalDoc.data();
+        if (existingData.passwordHash) {
+          throw new Error("Questa email è già registrata! Clicca su 'Accedi' per entrare con la tua password.");
+        }
+      }
+
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", cleanEmail));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        throw new Error("Email già registrata! Clicca su 'Accedi' per entrare con la tua password.");
+        const existingData = snap.docs[0].data();
+        if (existingData.passwordHash) {
+          throw new Error("Questa email è già registrata! Clicca su 'Accedi' per entrare con la tua password.");
+        }
       }
     } catch (checkErr: any) {
       if (checkErr.message?.includes("già registrata")) throw checkErr;
@@ -491,35 +601,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Compute secure client-side hash
     const salt = Math.random().toString(36).substring(2, 12);
     const passwordHash = await sha256(pass + salt);
-    const uid = "usr_" + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
     const photoURL = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}`;
 
     const authUser: AuthUser = {
-      uid,
+      uid: canonicalUid,
       email: cleanEmail,
       displayName: cleanName,
       photoURL,
       providerId: "password",
     };
 
-    // Save profile and credentials directly to Firestore
+    // Save unified profile and credentials directly to Firestore under canonicalUid
     try {
-      await setDoc(doc(db, "users", uid), {
-        userId: uid,
+      await setDoc(doc(db, "users", canonicalUid), {
+        userId: canonicalUid,
         email: cleanEmail,
         displayName: cleanName,
         passwordHash,
         salt,
         photoURL,
         provider: "password",
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
     } catch (fsErr) {
       console.warn("Firestore direct user save warning:", fsErr);
     }
 
-    // Also attempt server-side registration (silently ignores 404 if on static host like Vercel)
+    // Also attempt server-side registration
     try {
       await fetch("/api/auth/register", {
         method: "POST",
@@ -641,21 +749,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // 6. Guest Mode
+  // 6. Guest Mode (Disabled / Removed per user request)
   const signInAsGuest = async () => {
-    const guestUid = "guest_" + Math.random().toString(36).substring(2, 10);
-    const guestUser: AuthUser = {
-      uid: guestUid,
-      email: null,
-      displayName: "Ospite Esploratore",
-      photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=${guestUid}`,
-      isAnonymous: true,
-    };
-    localStorage.removeItem("pinna_explicitly_logged_out");
-    persistUser(guestUser);
-    syncProfileToFirestore(guestUser);
-    setIsAuthModalOpen(false);
-    setIsWelcomeModalOpen(false);
+    throw new Error("La modalità ospite è stata rimossa. Accedi con email e password o con Google.");
   };
 
   // 7. Sign Out

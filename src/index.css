@@ -11,6 +11,28 @@
 .leaflet-container {
   background: #020617 !important;
   font-family: inherit !important;
+  contain: layout paint;
+  touch-action: pan-x pan-y;
+}
+
+/* GPU-accelerated fluid Leaflet animations */
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.custom-interactive-marker {
+  will-change: transform;
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1) !important;
 }
 
 /* Hide scrollbars for smooth horizontal chip scrolling */
