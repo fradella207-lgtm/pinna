@@ -34,14 +34,15 @@ export function generateGpx(places: SavedPlace[]): string {
     const lng = place.coordinate?.lng;
     if (lat === undefined || lng === undefined) continue;
 
-    const name = escapeXml(place.nome_del_luogo || "Spot");
+    const name = escapeXml(place.nome_del_luogo || place.nome || place.nome_luogo || "Spot");
+    const isVisited = place.stato_iniziale?.visitato ?? place.visited ?? false;
     const descParts = [
       place.categoria_principale ? `Categoria: ${place.categoria_principale}` : "",
       place.citta_o_zona ? `Zona: ${place.citta_o_zona}` : "",
       place.sintesi ? `Note: ${place.sintesi}` : "",
       place.paese ? `Paese: ${place.paese}` : "",
       place.regione ? `Regione: ${place.regione}` : "",
-      place.stato === "gia_visitato" ? "Stato: Già visitato" : "Stato: Da visitare"
+      isVisited ? "Stato: Già visitato" : "Stato: Da visitare"
     ].filter(Boolean).join(" | ");
 
     waypointsXml += `  <wpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">
@@ -73,7 +74,7 @@ export function generateKml(places: SavedPlace[]): string {
     const lng = place.coordinate?.lng;
     if (lat === undefined || lng === undefined) continue;
 
-    const name = escapeXml(place.nome_del_luogo || "Spot");
+    const name = escapeXml(place.nome_del_luogo || place.nome || place.nome_luogo || "Spot");
     const desc = escapeXml(
       `${place.citta_o_zona || ""}\n${place.categoria_principale || ""}\n${place.sintesi || ""}`.trim()
     );

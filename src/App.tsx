@@ -14,6 +14,7 @@ import { PlaceDetailModal } from "./components/PlaceDetailModal";
 import { AiExtractorModal } from "./components/AiExtractorModal";
 import { AuthModal } from "./components/AuthModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { PricingPlansModal } from "./components/PricingPlansModal";
 import { WelcomeLoginModal } from "./components/WelcomeLoginModal";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { SpecialFilterType } from "./components/ActivityFilterBar";
@@ -21,6 +22,7 @@ import { ACTIVITY_FILTERS } from "./data/categories";
 import { UserAccountButton } from "./components/UserAccountButton";
 import { useUserPlaces } from "./lib/useUserPlaces";
 import { useAuth } from "./context/AuthContext";
+import { useSubscription } from "./context/SubscriptionContext";
 import { 
   doesPlaceMatchCountryRegionAndProvince, 
   findProvinceByCode, 
@@ -31,6 +33,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const { isWelcomeModalOpen, closeWelcomeModal, user } = useAuth();
+  const { checkCanAddSpot, openUpgradeModal } = useSubscription();
 
   // Real-time Cloud Firestore integration per user account
   const { 
@@ -244,6 +247,14 @@ export default function App() {
   };
 
   const handleSavePlace = async (newPlace: SavedPlace) => {
+    const isExisting = places.some((p) => p.id === newPlace.id);
+    if (!isExisting && !checkCanAddSpot(places.length)) {
+      openUpgradeModal(
+        "Hai raggiunto il limite di 20 spot gratuiti del piano Base. Passa a PINNA Pro per salvare spot illimitati sulla mappa!"
+      );
+      return;
+    }
+
     await savePlace(newPlace);
     setMapSelectedPlace(newPlace);
     setActiveDockTab("map");
@@ -521,6 +532,7 @@ export default function App() {
         places={places} 
         onClearAllData={clearAllPlaces} 
       />
+      <PricingPlansModal />
       <FeedbackModal />
     </div>
   );

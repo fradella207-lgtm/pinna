@@ -156,17 +156,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure no leftover hardcoded developer email or anonymous/guest account automatically logs in
-        if (
-          parsed?.email === "dellaquila037@gmail.com" ||
-          parsed?.isAnonymous ||
-          parsed?.uid?.startsWith("guest_") ||
-          !parsed?.email
-        ) {
-          localStorage.removeItem(STORAGE_KEY);
-          return null;
+        if (parsed && parsed.email) {
+          return parsed;
         }
-        return parsed;
       }
     } catch {
       // ignore
@@ -176,16 +168,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [loading, setLoading] = useState(true);
 
-  // When user is null, the welcome gatekeeper screen must be active
+  // Welcome modal: only opens initially if user has never dismissed it and is not logged in
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState<boolean>(() => {
     try {
-      if (localStorage.getItem("pinna_explicitly_logged_out") === "true") {
-        return true;
+      if (localStorage.getItem("pinna_welcome_dismissed") === "true") {
+        return false;
       }
       const saved = localStorage.getItem(STORAGE_KEY);
       return !saved;
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -199,11 +191,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (u) {
         localStorage.removeItem("pinna_explicitly_logged_out");
+        localStorage.setItem("pinna_welcome_dismissed", "true");
         localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
         setIsWelcomeModalOpen(false);
       } else {
         localStorage.removeItem(STORAGE_KEY);
-        setIsWelcomeModalOpen(true);
       }
     } catch {
       // ignore
@@ -239,14 +231,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // If developer test account was previously cached in Firebase IndexedDB, sign it out once
-      if (fbUser?.email === "dellaquila037@gmail.com" && localStorage.getItem("pinna_purged_dev_email") !== "true") {
-        localStorage.setItem("pinna_purged_dev_email", "true");
-        try { await firebaseSignOut(auth); } catch {}
-        setLoading(false);
-        return;
-      }
-
       if (fbUser) {
         const authUser: AuthUser = {
           uid: fbUser.uid,
@@ -264,13 +248,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => unsubscribe();
   }, []);
-
-  // Ensure welcome modal opens if user is logged out
-  useEffect(() => {
-    if (!loading && !user) {
-      setIsWelcomeModalOpen(true);
-    }
-  }, [user, loading]);
 
   // Handle Google credential returned by Google Identity Services official native button
   const handleGoogleCredentialResponse = async (credential: string) => {
@@ -768,13 +745,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setUser(null);
     setIsSettingsOpen(false);
-    setIsWelcomeModalOpen(true);
+    setIsWelcomeModalOpen(false);
   };
 
   const closeWelcomeModal = () => {
-    if (user) {
-      setIsWelcomeModalOpen(false);
-    }
+    try {
+      localStorage.setItem("pinna_welcome_dismissed", "true");
+    } catch {}
+    setIsWelcomeModalOpen(false);
   };
 
   return (

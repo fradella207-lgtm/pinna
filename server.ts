@@ -488,74 +488,79 @@ async function resolveGoogleMapsUrl(rawInput: string): Promise<ResolvedMapsPlace
   let currentUrl = urlMatch[0];
 
   const headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cookie": "CONSENT=YES+IT.it+V10+BX; SOCS=CAESHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAml0IAEaBgiA_LmmBg",
   };
 
   let resolvedUrl = currentUrl;
+  let htmlContent = "";
 
-  // Follow redirect chain (up to 8 hops)
-  for (let hop = 0; hop < 8; hop++) {
-    try {
-      const res = await fetch(currentUrl, {
-        method: "GET",
-        redirect: "manual",
-        headers,
-      });
+  // 1. Follow redirects cleanly with auto-follow and HTML refresh detection
+  try {
+    const res = await fetch(currentUrl, {
+      method: "GET",
+      redirect: "follow",
+      headers,
+    });
+    resolvedUrl = res.url || currentUrl;
+    if (res.ok) {
+      htmlContent = await res.text();
+    }
+  } catch (followErr) {
+    console.warn("Auto-redirect fetch error, falling back to manual hops:", followErr);
+  }
 
-      const loc = res.headers.get("location");
-      if (!loc) {
-        resolvedUrl = currentUrl;
-        break;
-      }
-
-      let nextUrl = loc;
-      if (nextUrl.startsWith("/")) {
-        try {
-          const u = new URL(currentUrl);
-          nextUrl = u.origin + nextUrl;
-        } catch {
-          // ignore
+  // Handle consent page redirects
+  if (resolvedUrl.includes("consent.google.com") || resolvedUrl.includes("consent.youtube.com")) {
+    const contMatch = resolvedUrl.match(/[?&](?:continue|destination)=([^&]+)/);
+    if (contMatch) {
+      const unwrapped = decodeURIComponent(contMatch[1]);
+      try {
+        const uRes = await fetch(unwrapped, { method: "GET", redirect: "follow", headers });
+        resolvedUrl = uRes.url || unwrapped;
+        if (uRes.ok) {
+          htmlContent = await uRes.text();
         }
+      } catch {
+        resolvedUrl = unwrapped;
       }
-
-      // Bypass consent.google.com redirects by unwrapping 'continue' or 'destination' query param
-      if (nextUrl.includes("consent.google.com") || nextUrl.includes("consent.youtube.com")) {
-        const contMatch = nextUrl.match(/[?&](?:continue|destination)=([^&]+)/);
-        if (contMatch) {
-          nextUrl = decodeURIComponent(contMatch[1]);
-        }
-      }
-
-      currentUrl = nextUrl;
-      resolvedUrl = nextUrl;
-
-      // If we already have full place path and coordinates in URL, we can stop early
-      if (
-        (resolvedUrl.includes("/place/") || resolvedUrl.includes("@")) &&
-        (resolvedUrl.includes("!3d") || resolvedUrl.includes("@"))
-      ) {
-        break;
-      }
-    } catch (fetchErr) {
-      console.warn("Errore hop redirect Google Maps:", fetchErr);
-      break;
     }
   }
 
-  // 1. Extract coordinates
+  // If HTML content contains a meta refresh or script redirect, follow that URL
+  if (htmlContent) {
+    const metaRefresh = htmlContent.match(/<meta[^>]*content=["'][^"']*url=([^"'>]+)["']/i);
+    const scriptRedirect = htmlContent.match(/window\.location\s*=\s*["']([^"']+)["']/i);
+    const canonicalLink = htmlContent.match(/<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i);
+    const redirectCandidate = (metaRefresh && metaRefresh[1]) || (scriptRedirect && scriptRedirect[1]) || (canonicalLink && canonicalLink[1]);
+    
+    if (redirectCandidate && redirectCandidate.startsWith("http") && !redirectCandidate.includes("consent.google.com")) {
+      try {
+        const cRes = await fetch(redirectCandidate, { method: "GET", redirect: "follow", headers });
+        resolvedUrl = cRes.url || redirectCandidate;
+        if (cRes.ok) {
+          htmlContent = await cRes.text();
+        }
+      } catch {
+        resolvedUrl = redirectCandidate;
+      }
+    }
+  }
+
+  // 2. Extract coordinates
   let lat: number | undefined;
   let lng: number | undefined;
 
-  // Pinpoint marker coordinate: !3d<lat>!4d<lng>
+  // Pinpoint marker coordinate in URL: !3d<lat>!4d<lng>
   const pinMatch = resolvedUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
   if (pinMatch) {
     lat = parseFloat(pinMatch[1]);
     lng = parseFloat(pinMatch[2]);
   }
 
-  // Fallback @lat,lng
+  // Fallback @lat,lng in URL
   if (lat === undefined || lng === undefined) {
     const atMatch = resolvedUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (atMatch) {
@@ -564,25 +569,50 @@ async function resolveGoogleMapsUrl(rawInput: string): Promise<ResolvedMapsPlace
     }
   }
 
-  // Fallback ?q=lat,lng or ll=lat,lng
+  // Fallback ?q=lat,lng or ll=lat,lng or query=lat,lng
   if (lat === undefined || lng === undefined) {
-    const qMatch = resolvedUrl.match(/[?&](?:q|ll|query|center)=(-?\d+\.\d+)[,%](-?\d+\.\d+)/);
+    const qMatch = resolvedUrl.match(/[?&](?:q|ll|query|center|saddr|daddr)=(-?\d+\.\d+)[,%](-?\d+\.\d+)/);
     if (qMatch) {
       lat = parseFloat(qMatch[1]);
       lng = parseFloat(qMatch[2]);
     }
   }
 
-  // 2. Extract place name
+  // Check coordinates in HTML content (staticmap center, og:image, APP_INITIALIZATION_STATE)
+  if (htmlContent && (lat === undefined || lng === undefined)) {
+    const staticMapMatch = htmlContent.match(/[?&](?:center|markers|ll)=(-?\d+\.\d+)%2C(-?\d+\.\d+)/);
+    if (staticMapMatch) {
+      lat = parseFloat(staticMapMatch[1]);
+      lng = parseFloat(staticMapMatch[2]);
+    }
+
+    if (lat === undefined || lng === undefined) {
+      const appStateCoordMatch = htmlContent.match(/\[null,null,(-?\d+\.\d{4,}),(-?\d+\.\d{4,})\]/);
+      if (appStateCoordMatch) {
+        lat = parseFloat(appStateCoordMatch[1]);
+        lng = parseFloat(appStateCoordMatch[2]);
+      }
+    }
+
+    if (lat === undefined || lng === undefined) {
+      const atHtmlMatch = htmlContent.match(/@(-?\d+\.\d{4,}),(-?\d+\.\d{4,})/);
+      if (atHtmlMatch) {
+        lat = parseFloat(atHtmlMatch[1]);
+        lng = parseFloat(atHtmlMatch[2]);
+      }
+    }
+  }
+
+  // 3. Extract place name
   let name: string | undefined;
 
-  // Check /place/<NAME>/
+  // Check /place/<NAME>/ in URL
   const placeMatch = resolvedUrl.match(/\/place\/([^/@?]+)/);
   if (placeMatch) {
     name = decodeURIComponent(placeMatch[1].replace(/\+/g, " "));
   }
 
-  // Check ?q=<NAME>
+  // Check ?q=<NAME> in URL
   if (!name) {
     const qNameMatch = resolvedUrl.match(/[?&]q=([^&]+)/);
     if (qNameMatch) {
@@ -593,53 +623,35 @@ async function resolveGoogleMapsUrl(rawInput: string): Promise<ResolvedMapsPlace
     }
   }
 
-  // 3. If coordinates or name are still missing, fetch HTML body
-  if (lat === undefined || lng === undefined || !name) {
-    try {
-      const htmlRes = await fetch(resolvedUrl, { headers });
-      if (htmlRes.ok) {
-        const html = await htmlRes.text();
+  // Check HTML title & meta tags
+  if (htmlContent) {
+    if (!name) {
+      const ogMatch = htmlContent.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i);
+      if (ogMatch && !ogMatch[1].toLowerCase().includes("google maps")) {
+        name = ogMatch[1].trim();
+      }
+    }
 
-        // Check staticmap center
-        if (lat === undefined || lng === undefined) {
-          const centerMatch = html.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/);
-          if (centerMatch) {
-            lat = parseFloat(centerMatch[1]);
-            lng = parseFloat(centerMatch[2]);
-          }
-        }
-
-        // Check HTML title
-        if (!name) {
-          const titleMatch = html.match(/<title>([^<]+?)<\/title>/);
-          if (titleMatch) {
-            let candidateTitle = titleMatch[1].replace(/\s*-\s*Google Maps\s*$/i, "").trim();
-            if (candidateTitle && !candidateTitle.toLowerCase().includes("google maps")) {
-              name = candidateTitle;
-            }
-          }
-        }
-
-        // Check OpenGraph title
-        if (!name) {
-          const ogMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
-          if (ogMatch && !ogMatch[1].toLowerCase().includes("google maps")) {
-            name = ogMatch[1];
-          }
+    if (!name) {
+      const titleMatch = htmlContent.match(/<title>([^<]+?)<\/title>/i);
+      if (titleMatch) {
+        let candidateTitle = titleMatch[1]
+          .replace(/\s*-\s*Google Maps\s*$/i, "")
+          .replace(/^Google Maps\s*[-–:]\s*/i, "")
+          .trim();
+        if (candidateTitle && !candidateTitle.toLowerCase().includes("google maps")) {
+          name = candidateTitle;
         }
       }
-    } catch (bodyErr) {
-      console.warn("Errore lettura HTML Google Maps:", bodyErr);
     }
   }
 
-  // If still missing name, default
-  if (!name) {
+  // Clean title
+  if (name) {
+    name = name.replace(/^Google Maps\s*[-–:]\s*/i, "").replace(/\s*-\s*Google Maps$/i, "").trim();
+  } else {
     name = "Spot da Google Maps";
   }
-
-  // Clean title if it contains extra unwanted strings
-  name = name.replace(/^Google Maps\s*[-–:]\s*/i, "").trim();
 
   // If coordinates are missing, attempt geocoding the name
   if (lat === undefined || lng === undefined) {
@@ -942,13 +954,39 @@ app.post("/api/extract", async (req, res) => {
 
 async function geocodeLive(query: string): Promise<{ lat: number; lng: number } | null> {
   if (!query || query.trim().length < 2) return null;
+  const cleanQuery = query.replace(/[#@]/g, " ").trim();
+
+  // 1. Try Photon Komoot API (fast and comprehensive)
   try {
-    const cleanQuery = query.replace(/[#@]/g, " ").trim();
+    const photonEndpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(cleanQuery)}&limit=1&lang=it`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const pRes = await fetch(photonEndpoint, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (pRes.ok) {
+      const pData = (await pRes.json()) as any;
+      if (pData?.features && pData.features.length > 0) {
+        const coords = pData.features[0].geometry?.coordinates;
+        if (coords && coords.length >= 2) {
+          return {
+            lat: parseFloat(coords[1]),
+            lng: parseFloat(coords[0]),
+          };
+        }
+      }
+    }
+  } catch (pErr) {
+    // continue to nominatim
+  }
+
+  // 2. Fallback to OpenStreetMap Nominatim
+  try {
     const endpoint = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
       cleanQuery
     )}&limit=1&addressdetails=1`;
     const res = await fetch(endpoint, {
-      headers: { "User-Agent": "SpotterApp/2.0 (spotter@aistudio.build)" },
+      headers: { "User-Agent": "PinnaSpotterApp/2.0 (spotter@pinna.app)" },
     });
     if (res.ok) {
       const data = (await res.json()) as any[];

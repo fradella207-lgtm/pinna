@@ -19,11 +19,15 @@ import {
   RefreshCw,
   ArrowRight,
   ChevronLeft,
-  Info
+  Info,
+  Crown,
+  Sparkles,
+  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 import { usePreferences, AppTheme, AppLanguage } from "../context/PreferencesContext";
+import { useSubscription, PRICING_PLANS } from "../context/SubscriptionContext";
 import { SavedPlace } from "../types";
 
 interface SettingsModalProps {
@@ -42,6 +46,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ places, onClearAll
   } = useAuth();
 
   const { theme, setTheme, language, setLanguage, isDarkMode, t } = usePreferences();
+  const { tier, openUpgradeModal } = useSubscription();
 
   // 3-step delete workflow:
   // step 0 = default collapsed view with "Elimina tutti i luoghi e resetta l'applicazione" button
@@ -50,7 +55,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ places, onClearAll
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
   const [isClearing, setIsClearing] = useState(false);
   const [clearSuccess, setClearSuccess] = useState(false);
-  const [saveToast, setSaveToast] = useState(false);
 
   if (!isSettingsOpen) return null;
 
@@ -80,14 +84,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ places, onClearAll
     } finally {
       setIsClearing(false);
     }
-  };
-
-  const handleSaveAndConfirm = () => {
-    setSaveToast(true);
-    setTimeout(() => {
-      setSaveToast(false);
-      closeSettings();
-    }, 500);
   };
 
   const languageOptions: { id: AppLanguage; label: string; flag: string }[] = [
@@ -203,6 +199,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ places, onClearAll
                   <LogOut className="w-3.5 h-3.5" />
                   <span>{t.logoutButton}</span>
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* 1.5 Piano & Abbonamento PINNA */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 text-white border border-slate-800 shadow-md space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                  tier === "founder" 
+                    ? "bg-amber-400 text-slate-950 font-black shadow-amber-400/20" 
+                    : tier === "pro" 
+                    ? "bg-indigo-500 text-white font-black shadow-indigo-500/20" 
+                    : "bg-slate-800 text-slate-300"
+                }`}>
+                  {tier === "founder" ? <Crown className="w-5 h-5" /> : tier === "pro" ? <Zap className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black tracking-tight">
+                      {PRICING_PLANS[tier]?.name || "Piano Base"}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      tier === "founder" 
+                        ? "bg-amber-400/20 text-amber-300 border border-amber-400/30" 
+                        : tier === "pro" 
+                        ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" 
+                        : "bg-white/10 text-slate-300"
+                    }`}>
+                      {PRICING_PLANS[tier]?.badge || "Gratis"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    {tier === "base" 
+                      ? `${places.length} / 20 spot gratuiti salvati` 
+                      : `${places.length} spot salvati (Illimitati)`}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => openUpgradeModal()}
+                className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-950 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+              >
+                {tier === "base" ? "Vedi Piani" : "Gestisci"}
+              </button>
+            </div>
+
+            {/* Progress Bar for Base tier */}
+            {tier === "base" && (
+              <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+                <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      places.length >= 20 ? "bg-rose-500" : places.length >= 15 ? "bg-amber-400" : "bg-emerald-400"
+                    }`}
+                    style={{ width: `${Math.min(100, (places.length / 20) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                  <span>Limite spot piano Base</span>
+                  <span className={places.length >= 20 ? "text-rose-400 font-bold" : "text-slate-400"}>
+                    {20 - Math.min(20, places.length)} spot rimanenti
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -532,27 +594,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ places, onClearAll
           </div>
         </div>
 
-        {/* Footer with Easy Green "Salva Impostazioni" Button */}
+        {/* Footer with Auto-Save Confirmation */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-            {saveToast ? (
-              <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in">
-                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
-                <span>{t.savedToast}</span>
-              </span>
-            ) : (
-              <span>Modifiche applicate all'istante</span>
-            )}
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Tutte le modifiche si salvano automaticamente</span>
           </div>
 
           <button
             type="button"
-            onClick={handleSaveAndConfirm}
-            className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 active:scale-98 transition-all"
-            title="Salva impostazioni e chiudi"
+            onClick={closeSettings}
+            className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
           >
-            <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>{t.saveSettingsButton}</span>
+            Chiudi
           </button>
         </div>
       </motion.div>

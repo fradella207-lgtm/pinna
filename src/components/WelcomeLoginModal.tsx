@@ -13,7 +13,8 @@ import {
   Eye,
   EyeOff,
   KeyRound,
-  HelpCircle
+  HelpCircle,
+  X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "../context/AuthContext";
@@ -41,9 +42,9 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [taglineIndex, setTaglineIndex] = useState(0);
 
-  // Form states - email di riferimento impostata su my360garage@gmail.com
-  const [email, setEmail] = useState("my360garage@gmail.com");
-  const [displayName, setDisplayName] = useState("My360Garage");
+  // Form states
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -134,16 +135,26 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
 
-          {/* Top Badge */}
+          {/* Top Badge & Close */}
           <div className="relative z-10 flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[10px] font-bold tracking-widest text-slate-200 uppercase">
               <Sparkles className="w-3 h-3 text-amber-400" />
               <span>PINNA • Cloud Sync</span>
             </span>
 
-            <span className="text-[11px] font-semibold text-slate-300">
-              {mode === "login" ? "Accedi" : mode === "register" ? "Registrati" : "Recupero"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-300">
+                {mode === "login" ? "Accedi" : mode === "register" ? "Registrati" : "Recupero"}
+              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                title="Chiudi ed esplora come ospite"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* App Brand */}
@@ -349,6 +360,15 @@ export const WelcomeLoginModal: React.FC<WelcomeLoginModalProps> = ({ isOpen, on
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
+            </button>
+
+            {/* Continua come ospite */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>Continua come ospite ed esplora la mappa</span>
             </button>
           </form>
 

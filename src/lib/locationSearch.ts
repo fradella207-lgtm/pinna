@@ -414,13 +414,17 @@ export async function resolveGoogleMapsLinkOnline(input: string): Promise<Resolv
   const trimmed = input.trim();
   if (!trimmed) return null;
 
+  // Extract clean URL from text
+  const urlMatch = trimmed.match(/(https?:\/\/[^\s"'<>]+)/i);
+  const targetUrl = urlMatch ? urlMatch[0] : trimmed;
+
   try {
     const res = await fetch("/api/resolve-maps-url", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ url: trimmed }),
+      body: JSON.stringify({ url: targetUrl }),
     });
 
     if (!res.ok) {
@@ -597,7 +601,27 @@ export async function searchLocationsOnline(query: string): Promise<GeoSearchRes
     ];
   }
 
-  const effectiveQuery = parsed.extractedQuery || trimmed;
+  // If query was a raw link that failed resolution, extract any text around it or the place slug
+  let effectiveQuery = parsed.extractedQuery || trimmed;
+  if (effectiveQuery.startsWith("http://") || effectiveQuery.startsWith("https://")) {
+    const placeFromUrl = effectiveQuery.match(/\/place\/([^/@?]+)/);
+    if (placeFromUrl) {
+      effectiveQuery = decodeURIComponent(placeFromUrl[1].replace(/\+/g, " "));
+    } else {
+      const qFromUrl = effectiveQuery.match(/[?&]q=([^&]+)/);
+      if (qFromUrl) {
+        effectiveQuery = decodeURIComponent(qFromUrl[1].replace(/\+/g, " "));
+      } else {
+        // Remove the URL portion and see if user wrote a place name
+        const textWithoutUrl = trimmed.replace(/https?:\/\/[^\s"'<>]+/gi, "").trim();
+        if (textWithoutUrl.length >= 2) {
+          effectiveQuery = textWithoutUrl;
+        } else {
+          return [];
+        }
+      }
+    }
+  }
   const lowerQuery = effectiveQuery.toLowerCase();
 
   const results: GeoSearchResult[] = [];

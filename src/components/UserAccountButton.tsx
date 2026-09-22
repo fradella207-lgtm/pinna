@@ -1,77 +1,49 @@
 import React from "react";
-import { LogIn, Settings, User as UserIcon, Cloud } from "lucide-react";
+import { Settings, User as UserIcon, Cloud } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export const UserAccountButton: React.FC = () => {
-  const { user, loading, openWelcomeModal, openSettings } = useAuth();
+  const { user, loading, openSettings } = useAuth();
 
   if (loading) {
     return (
-      <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 animate-pulse" />
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={openWelcomeModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 hover:bg-white text-slate-800 border border-slate-200/90 shadow-xs hover:shadow-md text-xs font-bold transition-all active:scale-95"
-          title="Accedi o registrati per salvare i tuoi spot su Cloud"
-        >
-          <LogIn className="w-3.5 h-3.5 text-indigo-600" />
-          <span>Accedi</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={openSettings}
-          className="w-8 h-8 rounded-full bg-white/95 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200/90 shadow-xs flex items-center justify-center transition-all active:scale-95"
-          title="Impostazioni dell'app"
-        >
-          <Settings className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      <div className="h-9 w-9 sm:w-28 rounded-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/90 dark:border-slate-800 animate-pulse" />
     );
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={openSettings}
-        className="flex items-center gap-1.5 p-1 pl-2.5 pr-2.5 rounded-full bg-white/95 hover:bg-white border border-slate-200/90 shadow-xs hover:shadow-sm text-xs transition-all active:scale-98 text-left"
-        title="Apri impostazioni e profilo"
-      >
-        <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+    <button
+      id="btn-settings-header"
+      type="button"
+      onClick={openSettings}
+      className="flex items-center gap-2 px-3 py-2 rounded-full bg-white/95 hover:bg-white dark:bg-slate-900/95 dark:hover:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200/90 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:shadow-lg text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0"
+      title="Impostazioni, Profilo e Abbonamento"
+    >
+      {user ? (
+        <>
           {user.photoURL ? (
             <img
               src={user.photoURL}
               alt={user.displayName || "Utente"}
               referrerPolicy="no-referrer"
-              className="w-5 h-5 rounded-full object-cover border border-slate-200"
+              className="w-5 h-5 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
             />
           ) : (
-            <UserIcon className="w-4 h-4 text-slate-500" />
+            <div className="w-5 h-5 rounded-full bg-slate-900 dark:bg-slate-700 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+              {user.displayName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || "U"}
+            </div>
           )}
-          <span className="max-w-[70px] sm:max-w-[110px] truncate font-medium text-slate-800">
-            {user.displayName?.split(" ")[0] || user.email?.split("@")[0] || "Account"}
+          <span className="hidden sm:inline max-w-[90px] truncate font-medium text-slate-800 dark:text-slate-200">
+            {user.displayName?.split(" ")[0] || user.email?.split("@")[0] || "Profilo"}
           </span>
-          <span className="hidden sm:inline-flex items-center text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md font-bold">
-            <Cloud className="w-2.5 h-2.5 mr-0.5" /> Cloud
-          </span>
-        </div>
-      </button>
-
-      <button
-        type="button"
-        onClick={openSettings}
-        className="w-8 h-8 rounded-full bg-white/95 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200/90 shadow-xs flex items-center justify-center transition-all active:scale-95"
-        title="Impostazioni"
-      >
-        <Settings className="w-3.5 h-3.5" />
-      </button>
-    </div>
+          <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+        </>
+      ) : (
+        <>
+          <Settings className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+          <span className="hidden sm:inline font-bold">Impostazioni</span>
+        </>
+      )}
+    </button>
   );
 };

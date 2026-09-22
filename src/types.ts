@@ -130,6 +130,7 @@ export interface SavedPlace {
   
   // Compatibility helpers
   nome_luogo?: string; // alias to nome
+  nome_del_luogo?: string; // alias to nome
   sottocategoria?: string;
   visited?: boolean;
   user_notes?: string;
